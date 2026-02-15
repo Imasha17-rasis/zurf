@@ -1,5 +1,5 @@
 const SurfSpot = require('../models/SurfSpot');
-const cloudinary = require('cloudinary').v2;
+const uploadToCloudinary = require('../utils/uploadToCloudinary');
 
 // @desc    Create new surf spot
 // @route   POST /api/surfspots
@@ -8,12 +8,12 @@ exports.createSurfSpot = async (req, res) => {
   try {
     const { name, location, description, pricePerHour } = req.body;
 
-    // Upload images to Cloudinary if provided
+    // Upload image buffers directly to Cloudinary — no temp files on disk
     let imageUrls = [];
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
-        const result = await cloudinary.uploader.upload(file.path, {
-          folder: 'zurf/surfspots'
+        const result = await uploadToCloudinary(file.buffer, {
+          folder: 'zurf/surfspots',
         });
         imageUrls.push(result.secure_url);
       }

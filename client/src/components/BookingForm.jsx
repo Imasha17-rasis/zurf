@@ -1,8 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { bookingAPI } from '../services/api';
-import { FiCalendar, FiClock, FiDollarSign } from 'react-icons/fi';
+import { loadStripe } from '@stripe/stripe-js';
+import {
+  Elements,
+  CardElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js';
+import { bookingAPI, paymentAPI } from '../services/api';
+import { FiCalendar, FiClock, FiDollarSign, FiLock, FiCheckCircle, FiArrowLeft } from 'react-icons/fi';
 
-const BookingForm = ({ surfSpot, guides, gears, onSuccess }) => {
+// Initialise Stripe once outside the component so it isn't recreated on re-renders
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
+// Step 1: Booking details form
+const BookingDetailsForm = ({ surfSpot, guides, gears, onProceed }) => {
   const [formData, setFormData] = useState({
     bookingDate: '',
     startTime: '',
@@ -10,26 +21,25 @@ const BookingForm = ({ surfSpot, guides, gears, onSuccess }) => {
     guide: '',
     gears: [],
   });
-  
   const [calculatedPrice, setCalculatedPrice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Calculate price whenever form data changes
+  // Recalculate price whenever relevant fields change
   useEffect(() => {
+    if (formData.durationHours <= 0) return;
+
     const calculatePrice = async () => {
-      if (formData.durationHours > 0) {
-        try {
-          const response = await bookingAPI.calculatePrice({
-            surfSpotId: surfSpot._id,
-            guideId: formData.guide || null,
-            gearIds: formData.gears,
-            durationHours: formData.durationHours,
-          });
-          setCalculatedPrice(response.data.data);
-        } catch (error) {
-          console.error('Price calculation error:', error);
-        }
+      try {
+        const response = await bookingAPI.calculatePrice({
+          surfSpotId: surfSpot._id,
+          guideId: formData.guide || null,
+          gearIds: formData.gears,
+          durationHours: formData.durationHours,
+        });
+        setCalculatedPrice(response.data.data);
+      } catch {
+        // Non-critical — price preview failing shouldn't block the user
       }
     };
 
@@ -38,17 +48,14 @@ const BookingForm = ({ surfSpot, guides, gears, onSuccess }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleGearChange = (gearId) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       gears: prev.gears.includes(gearId)
-        ? prev.gears.filter(id => id !== gearId)
+        ? prev.gears.filter((id) => id !== gearId)
         : [...prev.gears, gearId],
     }));
   };
@@ -59,34 +66,37 @@ const BookingForm = ({ surfSpot, guides, gears, onSuccess }) => {
     setError('');
 
     try {
-      const bookingData = {
+      // Create the booking record first (still unpaid at this point)
+      const bookingResponse = await bookingAPI.create({
         surfSpot: surfSpot._id,
         guide: formData.guide || null,
         gears: formData.gears,
         bookingDate: formData.bookingDate,
         startTime: formData.startTime,
         durationHours: Number(formData.durationHours),
-      };
+      });
 
-      await bookingAPI.create(bookingData);
-      
-      if (onSuccess) {
-        onSuccess();
-      }
-    } catch (error) {
-      setError(error.response?.data?.message || 'Booking failed. Please try again.');
+      const booking = bookingResponse.data.data;
+
+      // Ask the server for a PaymentIntent client secret for this booking
+      const intentResponse = await paymentAPI.createIntent(booking._id);
+      const { clientSecret } = intentResponse.data.data;
+
+      // Hand off to the payment step
+      onProceed({ booking, clientSecret, totalPrice: booking.totalPrice });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Get minimum date (today)
   const today = new Date().toISOString().split('T')[0];
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
           {error}
         </div>
       )}
@@ -136,7 +146,7 @@ const BookingForm = ({ surfSpot, guides, gears, onSuccess }) => {
           onChange={handleChange}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-transparent"
         >
-          {[1, 2, 3, 4, 5, 6].map(hours => (
+          {[1, 2, 3, 4, 5, 6].map((hours) => (
             <option key={hours} value={hours}>
               {hours} hour{hours > 1 ? 's' : ''}
             </option>
@@ -157,9 +167,9 @@ const BookingForm = ({ surfSpot, guides, gears, onSuccess }) => {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-transparent"
           >
             <option value="">No guide</option>
-            {guides.map(guide => (
+            {guides.map((guide) => (
               <option key={guide._id} value={guide._id}>
-                {guide.user?.name} - ${guide.pricePerSession} ({guide.experienceYears} years exp)
+                {guide.user?.name} — ${guide.pricePerSession} ({guide.experienceYears} yrs exp)
               </option>
             ))}
           </select>
@@ -173,7 +183,7 @@ const BookingForm = ({ surfSpot, guides, gears, onSuccess }) => {
             Select Gear (Optional)
           </label>
           <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
-            {gears.map(gear => (
+            {gears.map((gear) => (
               <label key={gear._id} className="flex items-center space-x-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -199,7 +209,9 @@ const BookingForm = ({ surfSpot, guides, gears, onSuccess }) => {
           <h4 className="font-semibold text-gray-900 mb-3">Price Breakdown</h4>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-600">Surf Spot ({formData.durationHours}h)</span>
+              <span className="text-gray-600">
+                Surf Spot ({formData.durationHours}h)
+              </span>
               <span className="font-medium">${calculatedPrice.breakdown.surfSpot}</span>
             </div>
             {calculatedPrice.breakdown.guide > 0 && (
@@ -225,15 +237,162 @@ const BookingForm = ({ surfSpot, guides, gears, onSuccess }) => {
         </div>
       )}
 
-      {/* Submit Button */}
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-ocean-500 hover:bg-ocean-600 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition duration-200"
+        className="w-full bg-ocean-500 hover:bg-ocean-600 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2"
       >
-        {loading ? 'Processing...' : 'Confirm Booking'}
+        <FiLock className="h-4 w-4" />
+        {loading ? 'Preparing payment…' : 'Proceed to Payment'}
       </button>
     </form>
+  );
+};
+
+// Step 2: Stripe card payment form
+const CARD_ELEMENT_OPTIONS = {
+  style: {
+    base: {
+      fontSize: '16px',
+      color: '#374151',
+      fontFamily: 'Inter, system-ui, sans-serif',
+      '::placeholder': { color: '#9ca3af' },
+    },
+    invalid: { color: '#ef4444' },
+  },
+};
+
+const PaymentForm = ({ totalPrice, clientSecret, onBack, onSuccess }) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handlePay = async (e) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+
+    setLoading(true);
+    setError('');
+
+    const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
+      clientSecret,
+      { payment_method: { card: elements.getElement(CardElement) } }
+    );
+
+    if (stripeError) {
+      setError(stripeError.message);
+      setLoading(false);
+      return;
+    }
+
+    if (paymentIntent.status === 'succeeded') {
+      onSuccess();
+    }
+  };
+
+  return (
+    <form onSubmit={handlePay} className="space-y-6">
+      {/* Summary */}
+      <div className="bg-ocean-50 border border-ocean-200 rounded-lg p-4 flex justify-between items-center">
+        <span className="font-medium text-gray-700">Total due</span>
+        <span className="text-xl font-bold text-ocean-700 flex items-center">
+          <FiDollarSign className="h-5 w-5" />{totalPrice}
+        </span>
+      </div>
+
+      {/* Card input */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Card details
+        </label>
+        <div className="border border-gray-300 rounded-lg px-4 py-3 focus-within:ring-2 focus-within:ring-ocean-500 focus-within:border-transparent">
+          <CardElement options={CARD_ELEMENT_OPTIONS} />
+        </div>
+        <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
+          <FiLock className="h-3 w-3" /> Secured by Stripe. We never store your card details.
+        </p>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={loading}
+          className="flex items-center gap-1 px-4 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+        >
+          <FiArrowLeft className="h-4 w-4" /> Back
+        </button>
+
+        <button
+          type="submit"
+          disabled={loading || !stripe}
+          className="flex-1 bg-ocean-500 hover:bg-ocean-600 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2"
+        >
+          <FiLock className="h-4 w-4" />
+          {loading ? 'Processing…' : `Pay $${totalPrice}`}
+        </button>
+      </div>
+    </form>
+  );
+};
+
+// Step 3: Success screen
+const PaymentSuccess = () => (
+  <div className="text-center py-8 space-y-4">
+    <FiCheckCircle className="h-16 w-16 text-green-500 mx-auto" />
+    <h3 className="text-xl font-bold text-gray-900">Payment successful!</h3>
+    <p className="text-gray-600">
+      Your booking is confirmed. You can track it on the My Bookings page.
+    </p>
+  </div>
+);
+
+// Root export: orchestrates the three steps
+const BookingForm = ({ surfSpot, guides, gears, onSuccess }) => {
+  const [step, setStep] = useState('details'); // 'details' | 'payment' | 'success'
+  const [paymentData, setPaymentData] = useState(null);
+
+  const handleProceedToPayment = (data) => {
+    setPaymentData(data);
+    setStep('payment');
+  };
+
+  const handlePaymentSuccess = () => {
+    setStep('success');
+    // Give the user a moment to read the success screen before navigating away
+    setTimeout(() => { if (onSuccess) onSuccess(); }, 2000);
+  };
+
+  return (
+    <Elements stripe={stripePromise}>
+      {step === 'details' && (
+        <BookingDetailsForm
+          surfSpot={surfSpot}
+          guides={guides}
+          gears={gears}
+          onProceed={handleProceedToPayment}
+        />
+      )}
+
+      {step === 'payment' && paymentData && (
+        <PaymentForm
+          booking={paymentData.booking}
+          clientSecret={paymentData.clientSecret}
+          totalPrice={paymentData.totalPrice}
+          onBack={() => setStep('details')}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
+
+      {step === 'success' && <PaymentSuccess />}
+    </Elements>
   );
 };
 

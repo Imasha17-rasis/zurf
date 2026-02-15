@@ -47,43 +47,61 @@ const Navbar = () => {
             >
               Surf Spots
             </Link>
+            <Link
+              to="/guides"
+              className="text-gray-700 hover:text-ocean-500 px-3 py-2 text-sm font-medium transition"
+            >
+              Guides
+            </Link>
+            <Link
+              to="/gear"
+              className="text-gray-700 hover:text-ocean-500 px-3 py-2 text-sm font-medium transition"
+            >
+              Gear
+            </Link>
+            <Link
+              to="/profile"
+              className="text-gray-700 hover:text-ocean-500 px-3 py-2 text-sm font-medium transition"
+            >
+              Profile
+            </Link>
+
+            {isAuthenticated && user?.role === 'surfer' && (
+              <Link
+                to="/my-bookings"
+                className="text-gray-700 hover:text-ocean-500 px-3 py-2 text-sm font-medium transition"
+              >
+                My Bookings
+              </Link>
+            )}
+
+            {isAuthenticated && (user?.role === 'owner' || user?.role === 'guide') && (
+              <Link
+                to={getDashboardLink()}
+                className="text-gray-700 hover:text-ocean-500 px-3 py-2 text-sm font-medium transition"
+              >
+                Dashboard
+              </Link>
+            )}
 
             {isAuthenticated ? (
-              <>
-                {user?.role === 'surfer' && (
-                  <Link
-                    to="/my-bookings"
-                    className="text-gray-700 hover:text-ocean-500 px-3 py-2 text-sm font-medium transition"
-                  >
-                    My Bookings
-                  </Link>
-                )}
-                
+              <div className="flex items-center space-x-4">
                 <Link
-                  to={getDashboardLink()}
-                  className="text-gray-700 hover:text-ocean-500 px-3 py-2 text-sm font-medium transition"
+                  to="/profile"
+                  className="flex items-center space-x-2 text-gray-700 hover:text-ocean-500"
                 >
-                  Dashboard
+                  <FiUser className="h-5 w-5" />
+                  <span className="text-sm font-medium">{user?.name}</span>
                 </Link>
 
-                <div className="flex items-center space-x-4">
-                  <Link
-                    to="/profile"
-                    className="flex items-center space-x-2 text-gray-700 hover:text-ocean-500"
-                  >
-                    <FiUser className="h-5 w-5" />
-                    <span className="text-sm font-medium">{user?.name}</span>
-                  </Link>
-                  
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center space-x-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-                  >
-                    <FiLogOut className="h-4 w-4" />
-                    <span>Logout</span>
-                  </button>
-                </div>
-              </>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center space-x-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+                >
+                  <FiLogOut className="h-4 w-4" />
+                  <span>Logout</span>
+                </button>
+              </div>
             ) : (
               <div className="flex items-center space-x-4">
                 <Link
@@ -129,45 +147,58 @@ const Navbar = () => {
             >
               Surf Spots
             </Link>
+            <Link
+              to="/guides"
+              className="block px-3 py-2 text-gray-700 hover:bg-ocean-50 hover:text-ocean-500 rounded-md"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Guides
+            </Link>
+            <Link
+              to="/gear"
+              className="block px-3 py-2 text-gray-700 hover:bg-ocean-50 hover:text-ocean-500 rounded-md"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Gear
+            </Link>
+            <Link
+              to="/profile"
+              className="block px-3 py-2 text-gray-700 hover:bg-ocean-50 hover:text-ocean-500 rounded-md"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Profile
+            </Link>
+
+            {isAuthenticated && user?.role === 'surfer' && (
+              <Link
+                to="/my-bookings"
+                className="block px-3 py-2 text-gray-700 hover:bg-ocean-50 hover:text-ocean-500 rounded-md"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                My Bookings
+              </Link>
+            )}
+
+            {isAuthenticated && (user?.role === 'owner' || user?.role === 'guide') && (
+              <Link
+                to={getDashboardLink()}
+                className="block px-3 py-2 text-gray-700 hover:bg-ocean-50 hover:text-ocean-500 rounded-md"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Dashboard
+              </Link>
+            )}
 
             {isAuthenticated ? (
-              <>
-                {user?.role === 'surfer' && (
-                  <Link
-                    to="/my-bookings"
-                    className="block px-3 py-2 text-gray-700 hover:bg-ocean-50 hover:text-ocean-500 rounded-md"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    My Bookings
-                  </Link>
-                )}
-                
-                <Link
-                  to={getDashboardLink()}
-                  className="block px-3 py-2 text-gray-700 hover:bg-ocean-50 hover:text-ocean-500 rounded-md"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
-
-                <Link
-                  to="/profile"
-                  className="block px-3 py-2 text-gray-700 hover:bg-ocean-50 hover:text-ocean-500 rounded-md"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Profile
-                </Link>
-
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full text-left px-3 py-2 text-red-600 hover:bg-red-50 rounded-md"
-                >
-                  Logout
-                </button>
-              </>
+              <button
+                onClick={() => {
+                  handleLogout();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 text-red-600 hover:bg-red-50 rounded-md"
+              >
+                Logout
+              </button>
             ) : (
               <>
                 <Link

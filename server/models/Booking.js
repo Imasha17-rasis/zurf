@@ -48,6 +48,12 @@ const bookingSchema = new mongoose.Schema({
     enum: ['paid', 'unpaid'],
     default: 'unpaid'
   },
+  // Stored so the Stripe webhook can match a payment_intent.succeeded event
+  // back to this booking without an extra metadata lookup
+  stripePaymentIntentId: {
+    type: String,
+    default: null,
+  },
   createdAt: {
     type: Date,
     default: Date.now

@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { surfSpotAPI } from '../services/api';
 import SurfSpotCard from '../components/SurfSpotCard';
-import { 
-  FiSearch, 
-  FiMapPin, 
-  FiUsers, 
+import {
+  FiSearch,
+  FiMapPin,
+  FiUsers,
   FiCalendar,
   FiCheckCircle,
   FiStar,
@@ -97,8 +97,8 @@ const Home = () => {
       {/* Hero Section */}
       <div className="relative bg-gradient-to-r from-ocean-600 to-ocean-800 text-white overflow-hidden">
         <div className="absolute inset-0 opacity-20">
-          <img 
-            src="https://images.unsplash.com/photo-1502680390469-be75c86b636f?w=1920" 
+          <img
+            src="https://images.unsplash.com/photo-1502680390469-be75c86b636f?w=1920"
             alt="Surfing"
             className="w-full h-full object-cover"
           />
@@ -111,7 +111,7 @@ const Home = () => {
             <p className="text-xl md:text-2xl text-ocean-100 mb-10">
               Book premium surf spots, expert guides, and quality gear all in one place
             </p>
-            
+
             {/* Search Bar */}
             <div className="max-w-2xl mx-auto">
               <div className="bg-white rounded-2xl shadow-2xl p-2 flex items-center">
@@ -187,10 +187,10 @@ const Home = () => {
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Popular Destinations</h2>
             <p className="text-xl text-gray-600">Explore the world's best surf spots</p>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {popularDestinations.map((destination, index) => (
-              <div 
+              <div
                 key={index}
                 className="group relative overflow-hidden rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2"
               >
@@ -235,7 +235,7 @@ const Home = () => {
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-4">Find Your Spot</h3>
               <p className="text-gray-600 leading-relaxed">
-                Browse through hundreds of verified surf spots worldwide. Filter by location, price, and ratings to find your perfect wave.
+                Browse through hundreds of verified surf spots in Sri Lanka. Filter by location, price, and ratings to find your perfect wave.
               </p>
             </div>
 
@@ -301,7 +301,7 @@ const Home = () => {
                   <SurfSpotCard key={spot._id} surfSpot={spot} />
                 ))}
               </div>
-              
+
               <div className="text-center mt-12">
                 <Link
                   to="/"
@@ -327,7 +327,7 @@ const Home = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {testimonials.map((testimonial, index) => (
-              <div 
+              <div
                 key={index}
                 className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-shadow duration-300"
               >
@@ -425,7 +425,7 @@ const Home = () => {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
-            <p>&copy; 2024 Zurf. All rights reserved. Made with ❤️ for surfers worldwide.</p>
+            <p>&copy; 2026 Zurf. All rights reserved.</p>
           </div>
         </div>
       </div>

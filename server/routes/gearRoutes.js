@@ -6,14 +6,24 @@ const {
   deleteGear,
   getAllGears,
   getGearById,
-  getGearsBySurfSpot
+  getGearsBySurfSpot,
+  getOwnerGears
 } = require('../controllers/gearController');
 const { protect } = require('../middleware/authMiddleware');
 const { authorize, checkVerified } = require('../middleware/roleMiddleware');
 const { uploadSingle, handleUploadError } = require('../middleware/uploadMiddleware');
+const validate = require('../middleware/validate');
+const {
+  validateAddGear,
+  validateUpdateGear,
+} = require('../middleware/validators/Gearvalidators');
 
 // Public routes
 router.get('/', getAllGears);
+
+// Owner gear listing (must be before /:id to avoid param conflict)
+router.get('/owner/my-gears', protect, authorize('owner'), getOwnerGears);
+
 router.get('/:id', getGearById);
 router.get('/surfspot/:surfSpotId', getGearsBySurfSpot);
 
@@ -25,6 +35,8 @@ router.post(
   checkVerified,
   uploadSingle,
   handleUploadError,
+  validateAddGear,
+  validate,
   addGear
 );
 
@@ -33,6 +45,8 @@ router.put(
   protect,
   authorize('owner'),
   checkVerified,
+  validateUpdateGear,
+  validate,
   updateGear
 );
 

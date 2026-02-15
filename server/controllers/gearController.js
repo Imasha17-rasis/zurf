@@ -1,6 +1,6 @@
 const Gear = require('../models/Gear');
 const SurfSpot = require('../models/SurfSpot');
-const cloudinary = require('cloudinary').v2;
+const uploadToCloudinary = require('../utils/uploadToCloudinary');
 
 // @desc    Add new gear
 // @route   POST /api/gears
@@ -29,9 +29,9 @@ exports.addGear = async (req, res) => {
     // Upload certificate if provided
     let certificateUrl = null;
     if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
+      const result = await uploadToCloudinary(req.file.buffer, {
         folder: 'zurf/gear-certificates',
-        resource_type: 'auto'
+        resource_type: 'auto',
       });
       certificateUrl = result.secure_url;
     }
@@ -194,14 +194,40 @@ exports.getGearById = async (req, res) => {
   }
 };
 
+// @desc    Get owner's gears
+// @route   GET /api/gears/owner/my-gears
+// @access  Private (Owner only)
+exports.getOwnerGears = async (req, res) => {
+  try {
+    // Find all surf spots owned by this user
+    const ownerSpots = await SurfSpot.find({ owner: req.user._id }).select('_id');
+    const spotIds = ownerSpots.map(spot => spot._id);
+
+    // Find all gear for those spots (include unverified so owners can see pending)
+    const gears = await Gear.find({ surfSpot: { $in: spotIds } })
+      .populate('surfSpot', 'name location');
+
+    res.json({
+      success: true,
+      count: gears.length,
+      data: gears
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 // @desc    Get gears by surf spot
 // @route   GET /api/gears/surfspot/:surfSpotId
 // @access  Public
 exports.getGearsBySurfSpot = async (req, res) => {
   try {
-    const gears = await Gear.find({ 
+    const gears = await Gear.find({
       surfSpot: req.params.surfSpotId,
-      isVerified: true 
+      isVerified: true
     });
 
     res.json({

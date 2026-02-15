@@ -43,7 +43,7 @@ export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
   getProfile: () => api.get('/auth/me'),
   updateProfile: (data) => api.put('/auth/update-profile', data),
-  uploadCertificate: (formData) => 
+  uploadCertificate: (formData) =>
     api.post('/auth/upload-certificate', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
@@ -53,7 +53,7 @@ export const authAPI = {
 export const surfSpotAPI = {
   getAll: (params) => api.get('/surfspots', { params }),
   getById: (id) => api.get(`/surfspots/${id}`),
-  create: (formData) => 
+  create: (formData) =>
     api.post('/surfspots', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
@@ -91,12 +91,18 @@ export const gearAPI = {
   getAll: () => api.get('/gears'),
   getById: (id) => api.get(`/gears/${id}`),
   getBySurfSpot: (surfSpotId) => api.get(`/gears/surfspot/${surfSpotId}`),
-  create: (formData) => 
+  getOwnerGears: () => api.get('/gears/owner/my-gears'),
+  create: (formData) =>
     api.post('/gears', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
   update: (id, data) => api.put(`/gears/${id}`, data),
   delete: (id) => api.delete(`/gears/${id}`),
+};
+
+// Payment API
+export const paymentAPI = {
+  createIntent: (bookingId) => api.post('/payments/create-intent', { bookingId }),
 };
 
 // Admin API

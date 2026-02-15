@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { adminAPI } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import AnalyticsCard from '../components/AnalyticsCard';
-import { 
-  FiUsers, 
-  FiMapPin, 
-  FiCalendar, 
+import {
+  FiUsers,
+  FiMapPin,
+  FiCalendar,
   FiDollarSign,
   FiCheck,
   FiX,
@@ -101,7 +101,7 @@ const AdminPanel = () => {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar role="admin" />
-      
+
       <div className="flex-1 p-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
@@ -111,16 +111,15 @@ const AdminPanel = () => {
           </div>
 
           {/* Tabs */}
-          <div className="bg-white rounded-lg shadow-sm p-2 mb-6 flex gap-2">
+          <div className="bg-white rounded-lg shadow-sm p-1.5 mb-6 flex gap-1">
             {['overview', 'verifications'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-lg font-medium capitalize transition ${
-                  activeTab === tab
-                    ? 'bg-ocean-500 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                className={`px-5 py-2.5 rounded-lg font-semibold capitalize transition-all duration-200 ${activeTab === tab
+                    ? 'bg-ocean-500 text-white shadow-md ring-2 ring-ocean-300'
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                  }`}
               >
                 {tab}
               </button>

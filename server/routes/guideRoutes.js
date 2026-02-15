@@ -11,9 +11,25 @@ const {
 } = require('../controllers/guideController');
 const { protect } = require('../middleware/authMiddleware');
 const { authorize, checkVerified } = require('../middleware/roleMiddleware');
+const validate = require('../middleware/validate');
+const {
+  validateCreateGuideProfile,
+  validateUpdateGuideProfile,
+} = require('../middleware/validators/Guidevalidators');
 
 // Public routes
 router.get('/', getAllGuides);
+
+// Static named routes must come BEFORE /:id to avoid Express
+// treating literal strings like "schedule" as an ID parameter
+router.get(
+  '/schedule',
+  protect,
+  authorize('guide'),
+  checkVerified,
+  viewSchedule
+);
+
 router.get('/:id', getGuideById);
 
 // Protected routes - Guide only
@@ -21,6 +37,8 @@ router.post(
   '/',
   protect,
   authorize('guide'),
+  validateCreateGuideProfile,
+  validate,
   createGuideProfile
 );
 
@@ -29,15 +47,9 @@ router.put(
   protect,
   authorize('guide'),
   checkVerified,
+  validateUpdateGuideProfile,
+  validate,
   updateGuideProfile
-);
-
-router.get(
-  '/schedule',
-  protect,
-  authorize('guide'),
-  checkVerified,
-  viewSchedule
 );
 
 router.put(

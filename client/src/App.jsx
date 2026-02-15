@@ -13,6 +13,9 @@ import Profile from './pages/Profile';
 import DashboardOwner from './pages/DashboardOwner';
 import DashboardGuide from './pages/DashboardGuide';
 import AdminPanel from './pages/AdminPanel';
+import Guides from './pages/Guides';
+import Gear from './pages/Gear';
+import OwnerGears from './pages/OwnerGears';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -62,6 +65,22 @@ function AppRoutes() {
             </Layout>
           }
         />
+        <Route
+          path="/guides"
+          element={
+            <Layout>
+              <Guides />
+            </Layout>
+          }
+        />
+        <Route
+          path="/gear"
+          element={
+            <Layout>
+              <Gear />
+            </Layout>
+          }
+        />
 
         {/* Auth Routes */}
         <Route
@@ -102,6 +121,14 @@ function AppRoutes() {
         />
 
         {/* Protected Routes - Owner */}
+        <Route
+          path="/dashboard/owner/gears"
+          element={
+            <ProtectedRoute allowedRoles={['owner']}>
+              <OwnerGears />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/dashboard/owner/*"
           element={

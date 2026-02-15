@@ -1,5 +1,6 @@
 const Guide = require('../models/Guide');
 const Booking = require('../models/Booking');
+const User = require('../models/User');
 
 // @desc    Create guide profile
 // @route   POST /api/guides
@@ -88,7 +89,7 @@ exports.viewSchedule = async (req, res) => {
     }
 
     // Get all bookings for this guide
-    const bookings = await Booking.find({ 
+    const bookings = await Booking.find({
       guide: guide._id,
       status: { $in: ['pending', 'approved'] }
     })
@@ -205,7 +206,16 @@ exports.rejectBooking = async (req, res) => {
 // @access  Public
 exports.getAllGuides = async (req, res) => {
   try {
-    const guides = await Guide.find()
+    // isVerified lives on the User document, not the Guide document, so we
+    // first collect the IDs of all verified guide users, then filter guides
+    // by those IDs. This ensures pending/unverified guides are never exposed.
+    const verifiedGuideUsers = await User.find(
+      { role: 'guide', isVerified: true },
+      '_id'
+    );
+    const verifiedUserIds = verifiedGuideUsers.map((u) => u._id);
+
+    const guides = await Guide.find({ user: { $in: verifiedUserIds } })
       .populate('user', 'name email isVerified')
       .populate('surfSpot', 'name location');
 
@@ -232,6 +242,14 @@ exports.getGuideById = async (req, res) => {
       .populate('surfSpot', 'name location');
 
     if (!guide) {
+      return res.status(404).json({
+        success: false,
+        message: 'Guide not found'
+      });
+    }
+
+    // Block direct ID lookups for guides whose user account is not yet verified
+    if (!guide.user?.isVerified) {
       return res.status(404).json({
         success: false,
         message: 'Guide not found'

@@ -1,13 +1,6 @@
 const User = require('../models/User');
 const { generateToken } = require('../middleware/authMiddleware');
-const cloudinary = require('cloudinary').v2;
-
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
+const uploadToCloudinary = require('../utils/uploadToCloudinary');
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -15,6 +8,12 @@ cloudinary.config({
 exports.registerUser = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
+
+    // Only these roles may be self-assigned at registration.
+    // 'admin' is intentionally excluded — admins must be created
+    // directly in the database or via a separate admin-only endpoint.
+    const ALLOWED_ROLES = ['surfer', 'owner', 'guide'];
+    const assignedRole = ALLOWED_ROLES.includes(role) ? role : 'surfer';
 
     // Check if user exists
     const userExists = await User.findOne({ email });
@@ -31,7 +30,7 @@ exports.registerUser = async (req, res) => {
       name,
       email,
       password,
-      role: role || 'surfer'
+      role: assignedRole
     });
 
     if (user) {
@@ -113,10 +112,10 @@ exports.uploadCertificate = async (req, res) => {
       });
     }
 
-    // Upload to Cloudinary
-    const result = await cloudinary.uploader.upload(req.file.path, {
+    // Upload buffer directly to Cloudinary — no temp file on disk
+    const result = await uploadToCloudinary(req.file.buffer, {
       folder: 'zurf/certificates',
-      resource_type: 'auto'
+      resource_type: 'auto',
     });
 
     // Update user with certificate URL
@@ -186,6 +185,41 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message
+    });
+  }
+};
+
+// @desc    Change password
+// @route   PUT /api/auth/change-password
+// @access  Private
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // Fetch user with password field (it's excluded by default)
+    const user = await User.findById(req.user._id).select('+password');
+
+    // Verify the current password before allowing the change
+    const isMatch = await user.matchPassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect',
+      });
+    }
+
+    // Assigning to user.password triggers the pre-save bcrypt hook
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password updated successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
     });
   }
 };

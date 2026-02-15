@@ -13,11 +13,19 @@ const {
 } = require('../controllers/bookingController');
 const { protect } = require('../middleware/authMiddleware');
 const { authorize, checkVerified } = require('../middleware/roleMiddleware');
+const validate = require('../middleware/validate');
+const {
+  validateCalculatePrice,
+  validateCreateBooking,
+  validateUpdateBookingStatus,
+} = require('../middleware/validators/Bookingvalidators');
 
 // Protected routes - Surfer
 router.post(
   '/calculate-price',
   protect,
+  validateCalculatePrice,
+  validate,
   calculateTotalPrice
 );
 
@@ -25,6 +33,8 @@ router.post(
   '/',
   protect,
   authorize('surfer'),
+  validateCreateBooking,
+  validate,
   createBooking
 );
 
@@ -71,6 +81,8 @@ router.put(
   '/:id/status',
   protect,
   authorize('owner', 'admin'),
+  validateUpdateBookingStatus,
+  validate,
   updateBookingStatus
 );
 

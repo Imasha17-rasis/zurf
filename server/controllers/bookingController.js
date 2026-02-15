@@ -10,43 +10,35 @@ exports.calculateTotalPrice = async (req, res) => {
   try {
     const { surfSpotId, guideId, gearIds, durationHours } = req.body;
 
-    let totalPrice = 0;
+    // Fetch all required documents in parallel — single round-trip per resource
+    const [surfSpot, guide, gears] = await Promise.all([
+      SurfSpot.findById(surfSpotId),
+      guideId ? Guide.findById(guideId) : null,
+      gearIds && gearIds.length > 0 ? Gear.find({ _id: { $in: gearIds } }) : [],
+    ]);
 
-    // Get surf spot price
-    const surfSpot = await SurfSpot.findById(surfSpotId);
     if (!surfSpot) {
       return res.status(404).json({
         success: false,
         message: 'Surf spot not found'
       });
     }
-    totalPrice += surfSpot.pricePerHour * durationHours;
 
-    // Add guide price if selected
-    if (guideId) {
-      const guide = await Guide.findById(guideId);
-      if (guide) {
-        totalPrice += guide.pricePerSession;
-      }
-    }
-
-    // Add gear prices if selected
-    if (gearIds && gearIds.length > 0) {
-      const gears = await Gear.find({ _id: { $in: gearIds } });
-      gears.forEach(gear => {
-        totalPrice += gear.pricePerHour * durationHours;
-      });
-    }
+    // Calculate each component once and reuse for both totalPrice and the
+    // breakdown — no second DB queries needed
+    const surfSpotCost = surfSpot.pricePerHour * durationHours;
+    const guideCost = guide ? guide.pricePerSession : 0;
+    const gearsCost = gears.reduce((sum, gear) => sum + gear.pricePerHour * durationHours, 0);
+    const totalPrice = surfSpotCost + guideCost + gearsCost;
 
     res.json({
       success: true,
       data: {
         totalPrice,
         breakdown: {
-          surfSpot: surfSpot.pricePerHour * durationHours,
-          guide: guideId ? (await Guide.findById(guideId)).pricePerSession : 0,
-          gears: gearIds ? (await Gear.find({ _id: { $in: gearIds } })).reduce((sum, gear) => 
-            sum + (gear.pricePerHour * durationHours), 0) : 0
+          surfSpot: surfSpotCost,
+          guide: guideCost,
+          gears: gearsCost,
         }
       }
     });
@@ -63,13 +55,13 @@ exports.calculateTotalPrice = async (req, res) => {
 // @access  Private (Surfer)
 exports.createBooking = async (req, res) => {
   try {
-    const { 
-      surfSpot, 
-      guide, 
-      gears, 
-      bookingDate, 
-      startTime, 
-      durationHours 
+    const {
+      surfSpot,
+      guide,
+      gears,
+      bookingDate,
+      startTime,
+      durationHours
     } = req.body;
 
     // Calculate total price
@@ -160,8 +152,8 @@ exports.getOwnerBookings = async (req, res) => {
     const surfSpotIds = surfSpots.map(spot => spot._id);
 
     // Find all bookings for these surf spots
-    const bookings = await Booking.find({ 
-      surfSpot: { $in: surfSpotIds } 
+    const bookings = await Booking.find({
+      surfSpot: { $in: surfSpotIds }
     })
       .populate('surfer', 'name email')
       .populate('surfSpot', 'name location')
@@ -200,8 +192,8 @@ exports.updateBookingStatus = async (req, res) => {
     }
 
     // Check if user is owner of the surf spot
-    if (booking.surfSpot.owner.toString() !== req.user._id.toString() && 
-        req.user.role !== 'admin') {
+    if (booking.surfSpot.owner.toString() !== req.user._id.toString() &&
+      req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this booking'
