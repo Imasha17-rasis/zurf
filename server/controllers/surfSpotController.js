@@ -45,10 +45,20 @@ exports.createSurfSpot = async (req, res) => {
 // @access  Public
 exports.getAllSurfSpots = async (req, res) => {
   try {
-    const { country, city, minPrice, maxPrice, minRating } = req.query;
+    const { country, city, search, minPrice, maxPrice, minRating } = req.query;
 
     // Build query
     let query = { isVerified: true };
+
+    // General search across name, city, and country
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { name: searchRegex },
+        { 'location.city': searchRegex },
+        { 'location.country': searchRegex }
+      ];
+    }
 
     if (country) query['location.country'] = new RegExp(country, 'i');
     if (city) query['location.city'] = new RegExp(city, 'i');

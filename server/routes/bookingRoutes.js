@@ -9,7 +9,8 @@ const {
   cancelBooking,
   getBookingById,
   getDailyIncome,
-  getMonthlyReport
+  getMonthlyReport,
+  getYearlyReport
 } = require('../controllers/bookingController');
 const { protect } = require('../middleware/authMiddleware');
 const { authorize, checkVerified } = require('../middleware/roleMiddleware');
@@ -75,6 +76,14 @@ router.get(
   authorize('owner'),
   checkVerified,
   getMonthlyReport
+);
+
+router.get(
+  '/owner/yearly-report',
+  protect,
+  authorize('owner'),
+  checkVerified,
+  getYearlyReport
 );
 
 router.put(

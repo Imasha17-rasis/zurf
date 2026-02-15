@@ -16,6 +16,9 @@ import AdminPanel from './pages/AdminPanel';
 import Guides from './pages/Guides';
 import Gear from './pages/Gear';
 import OwnerGears from './pages/OwnerGears';
+import OwnerSurfSpots from './pages/OwnerSurfSpots';
+import OwnerAnalytics from './pages/OwnerAnalytics';
+import OwnerBookings from './pages/OwnerBookings';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -122,10 +125,34 @@ function AppRoutes() {
 
         {/* Protected Routes - Owner */}
         <Route
+          path="/dashboard/owner/surf-spots"
+          element={
+            <ProtectedRoute allowedRoles={['owner']}>
+              <OwnerSurfSpots />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/dashboard/owner/gears"
           element={
             <ProtectedRoute allowedRoles={['owner']}>
               <OwnerGears />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/owner/analytics"
+          element={
+            <ProtectedRoute allowedRoles={['owner']}>
+              <OwnerAnalytics />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/owner/bookings"
+          element={
+            <ProtectedRoute allowedRoles={['owner']}>
+              <OwnerBookings />
             </ProtectedRoute>
           }
         />

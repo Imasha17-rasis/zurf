@@ -383,3 +383,57 @@ exports.getMonthlyReport = async (req, res) => {
     });
   }
 };
+
+// @desc    Get yearly report for owner
+// @route   GET /api/bookings/owner/yearly-report
+// @access  Private (Owner)
+exports.getYearlyReport = async (req, res) => {
+  try {
+    const year = new Date().getFullYear();
+    const firstDay = new Date(year, 0, 1);
+    const lastDay = new Date(year, 11, 31, 23, 59, 59);
+
+    // Find all surf spots owned by this user
+    const surfSpots = await SurfSpot.find({ owner: req.user._id });
+    const surfSpotIds = surfSpots.map(spot => spot._id);
+
+    const bookings = await Booking.find({
+      surfSpot: { $in: surfSpotIds },
+      bookingDate: { $gte: firstDay, $lte: lastDay },
+      status: { $in: ['approved', 'completed'] },
+      paymentStatus: 'paid'
+    });
+
+    const totalIncome = bookings.reduce((sum, booking) => sum + booking.totalPrice, 0);
+
+    // Monthly breakdown
+    const monthlyBreakdown = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      label: new Date(year, i, 1).toLocaleString('default', { month: 'short' }),
+      bookings: 0,
+      income: 0,
+    }));
+
+    bookings.forEach(booking => {
+      const month = new Date(booking.bookingDate).getMonth();
+      monthlyBreakdown[month].bookings += 1;
+      monthlyBreakdown[month].income += booking.totalPrice;
+    });
+
+    res.json({
+      success: true,
+      data: {
+        year,
+        totalBookings: bookings.length,
+        totalIncome,
+        averageBookingValue: bookings.length > 0 ? totalIncome / bookings.length : 0,
+        monthlyBreakdown
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

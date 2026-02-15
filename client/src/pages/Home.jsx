@@ -17,6 +17,8 @@ const Home = () => {
   const [surfSpots, setSurfSpots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   useEffect(() => {
     fetchSurfSpots();
@@ -35,38 +37,56 @@ const Home = () => {
   };
 
   const handleSearch = () => {
-    if (searchTerm) {
-      fetchSurfSpots({ city: searchTerm });
+    setShowSuggestions(false);
+    if (searchTerm.trim()) {
+      setHasSearched(true);
+      fetchSurfSpots({ search: searchTerm.trim() });
     } else {
+      setHasSearched(false);
       fetchSurfSpots();
     }
+  };
+
+  const searchDestination = (destinationName) => {
+    // Extract just the city name (before the comma)
+    const city = destinationName.split(',')[0].trim();
+    setSearchTerm(city);
+    setShowSuggestions(false);
+    setHasSearched(true);
+    fetchSurfSpots({ search: city });
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setHasSearched(false);
+    fetchSurfSpots();
   };
 
   // Popular destinations data
   const popularDestinations = [
     {
-      name: 'Malibu, California',
+      name: 'Weligama, Sri Lanka',
       image: 'https://images.unsplash.com/photo-1502680390469-be75c86b636f?w=800',
       spots: 12,
-      description: 'Perfect waves for all skill levels'
+      description: 'Known for its long sandy beach and gentle waves, perfect for beginners.'
     },
     {
-      name: 'Bali, Indonesia',
+      name: 'Arugam Bay, Sri Lanka',
       image: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800',
       spots: 25,
-      description: 'Tropical paradise with world-class breaks'
+      description: 'Known for its consistent waves, it\'s a favorite among surfers and hosts several surf competitions.'
     },
     {
-      name: 'Gold Coast, Australia',
-      image: 'https://images.unsplash.com/photo-1583737094376-5a0c9c2aa9c4?w=800',
+      name: 'Hikkaduwa, Sri Lanka',
+      image: 'https://images.unsplash.com/photo-1528150177508-7cc0c36cda5c?w=800',
       spots: 18,
-      description: 'Consistent swells year-round'
+      description: 'Offers a variety of waves suitable for all levels, making it a popular destination for both beginners and experienced surfers.'
     },
     {
-      name: 'Nazaré, Portugal',
+      name: 'Mirissa, Sri Lanka',
       image: 'https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=800',
       spots: 8,
-      description: 'Home to the biggest waves on Earth'
+      description: 'Offers great waves and a stunning beach setting, popular for both surfing and relaxation.'
     }
   ];
 
@@ -113,17 +133,32 @@ const Home = () => {
             </p>
 
             {/* Search Bar */}
-            <div className="max-w-2xl mx-auto">
+            <div className="max-w-2xl mx-auto relative">
               <div className="bg-white rounded-2xl shadow-2xl p-2 flex items-center">
                 <FiSearch className="h-6 w-6 text-gray-400 ml-3" />
                 <input
                   type="text"
-                  placeholder="Search destinations..."
-                  className="flex-1 px-4 py-4 text-gray-900 text-lg focus:outline-none"
+                  placeholder="Search surf spots, cities... (e.g. Arugam Bay, Weligama)"
+                  className="flex-1 px-4 py-4 text-gray-900 text-lg focus:outline-none rounded-xl"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 />
+                {searchTerm && (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      setShowSuggestions(false);
+                    }}
+                    className="text-gray-400 hover:text-gray-600 mr-2 text-xl"
+                  >
+                    ✕
+                  </button>
+                )}
                 <button
                   onClick={handleSearch}
                   className="bg-ocean-500 hover:bg-ocean-600 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105"
@@ -131,6 +166,52 @@ const Home = () => {
                   Search
                 </button>
               </div>
+
+              {/* Suggestions Dropdown */}
+              {showSuggestions && searchTerm.length === 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl overflow-hidden z-50">
+                  <div className="p-3 border-b border-gray-100">
+                    <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Popular Destinations</p>
+                  </div>
+                  {popularDestinations.map((dest, index) => (
+                    <button
+                      key={index}
+                      onClick={() => searchDestination(dest.name)}
+                      className="w-full flex items-center px-4 py-3 hover:bg-ocean-50 transition-colors duration-150 text-left"
+                    >
+                      <FiMapPin className="h-5 w-5 text-ocean-500 mr-3 flex-shrink-0" />
+                      <div>
+                        <p className="text-gray-900 font-medium">{dest.name}</p>
+                        <p className="text-sm text-gray-500">{dest.spots} surf spots</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Filtered suggestions while typing */}
+              {showSuggestions && searchTerm.length > 0 && (() => {
+                const filtered = popularDestinations.filter((dest) =>
+                  dest.name.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+                return filtered.length > 0 ? (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl overflow-hidden z-50">
+                    {filtered.map((dest, index) => (
+                      <button
+                        key={index}
+                        onClick={() => searchDestination(dest.name)}
+                        className="w-full flex items-center px-4 py-3 hover:bg-ocean-50 transition-colors duration-150 text-left"
+                      >
+                        <FiMapPin className="h-5 w-5 text-ocean-500 mr-3 flex-shrink-0" />
+                        <div>
+                          <p className="text-gray-900 font-medium">{dest.name}</p>
+                          <p className="text-sm text-gray-500">{dest.spots} surf spots</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
             </div>
           </div>
         </div>
@@ -185,7 +266,7 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Popular Destinations</h2>
-            <p className="text-xl text-gray-600">Explore the world's best surf spots</p>
+            <p className="text-xl text-gray-600">Explore the Sri Lanka's best surf spots</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -267,6 +348,53 @@ const Home = () => {
           </div>
         </div>
       </div>
+
+      {/* Search Results (shown when user has searched) */}
+      {hasSearched && (
+        <div className="py-20 bg-ocean-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between mb-12">
+              <div>
+                <h2 className="text-4xl font-bold text-gray-900 mb-2">Search Results</h2>
+                <p className="text-xl text-gray-600">
+                  {loading ? 'Searching...' : `${surfSpots.length} spot${surfSpots.length !== 1 ? 's' : ''} found for "${searchTerm}"`}
+                </p>
+              </div>
+              <button
+                onClick={clearSearch}
+                className="flex items-center space-x-2 text-ocean-600 hover:text-ocean-700 font-semibold bg-white px-4 py-2 rounded-xl shadow-sm hover:shadow-md transition-all"
+              >
+                <span>Clear Search</span>
+                <span>✕</span>
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ocean-500"></div>
+              </div>
+            ) : surfSpots.length === 0 ? (
+              <div className="text-center py-16">
+                <GiWaves className="h-16 w-16 text-ocean-300 mx-auto mb-4" />
+                <h3 className="text-2xl font-bold text-gray-700 mb-2">No spots found</h3>
+                <p className="text-gray-500 mb-6">Try searching for a different destination like "Arugam Bay" or "Weligama"</p>
+                <button
+                  onClick={clearSearch}
+                  className="bg-ocean-500 hover:bg-ocean-600 text-white px-6 py-3 rounded-xl font-semibold transition-all"
+                >
+                  Browse All Spots
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {surfSpots.map((spot) => (
+                  <SurfSpotCard key={spot._id} surfSpot={spot} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Featured Surf Spots */}
       <div className="py-20 bg-white">

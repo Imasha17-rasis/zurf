@@ -73,6 +73,7 @@ export const bookingAPI = {
   cancel: (id) => api.put(`/bookings/${id}/cancel`),
   getDailyIncome: () => api.get('/bookings/owner/daily-income'),
   getMonthlyReport: () => api.get('/bookings/owner/monthly-report'),
+  getYearlyReport: () => api.get('/bookings/owner/yearly-report'),
 };
 
 // Guide API
