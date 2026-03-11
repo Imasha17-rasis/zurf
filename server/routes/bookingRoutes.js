@@ -3,6 +3,9 @@ const router = express.Router();
 const {
   calculateTotalPrice,
   createBooking,
+  checkAvailability,
+  checkGuideAvailabilityEndpoint,
+  checkGearAvailabilityEndpoint,
   getUserBookings,
   getOwnerBookings,
   updateBookingStatus,
@@ -28,6 +31,24 @@ router.post(
   validateCalculatePrice,
   validate,
   calculateTotalPrice
+);
+
+router.post(
+  '/check-availability',
+  protect,
+  checkAvailability
+);
+
+router.post(
+  '/check-guide-availability',
+  protect,
+  checkGuideAvailabilityEndpoint
+);
+
+router.post(
+  '/check-gear-availability',
+  protect,
+  checkGearAvailabilityEndpoint
 );
 
 router.post(

@@ -28,6 +28,18 @@ const userSchema = new mongoose.Schema({
     enum: ['surfer', 'owner', 'guide', 'admin'],
     default: 'surfer'
   },
+  phone: {
+    type: String,
+    default: ''
+  },
+  location: {
+    type: String,
+    default: ''
+  },
+  bio: {
+    type: String,
+    default: ''
+  },
   isVerified: {
     type: Boolean,
     default: false

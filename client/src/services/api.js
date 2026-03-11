@@ -65,6 +65,9 @@ export const surfSpotAPI = {
 // Booking API
 export const bookingAPI = {
   calculatePrice: (data) => api.post('/bookings/calculate-price', data),
+  checkAvailability: (data) => api.post('/bookings/check-availability', data),
+  checkGuideAvailability: (data) => api.post('/bookings/check-guide-availability', data),
+  checkGearAvailability: (data) => api.post('/bookings/check-gear-availability', data),
   create: (data) => api.post('/bookings', data),
   getMyBookings: () => api.get('/bookings/my-bookings'),
   getOwnerBookings: () => api.get('/bookings/owner/all'),
@@ -80,11 +83,22 @@ export const bookingAPI = {
 export const guideAPI = {
   getAll: () => api.get('/guides'),
   getById: (id) => api.get(`/guides/${id}`),
+  getProfile: () => api.get('/guides/profile'),
   createProfile: (data) => api.post('/guides', data),
   updateProfile: (data) => api.put('/guides/profile', data),
+  uploadProfileImage: (formData) =>
+    api.post('/guides/upload-profile-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
   getSchedule: () => api.get('/guides/schedule'),
   acceptBooking: (id) => api.put(`/guides/bookings/${id}/accept`),
   rejectBooking: (id) => api.put(`/guides/bookings/${id}/reject`),
+  requestHire: (guideId, surfSpotId) => api.post(`/guides/${guideId}/request-hire`, { surfSpotId }),
+  getHireRequests: () => api.get('/guides/my-hire-requests'),
+  acceptHireRequest: (requestId) => api.put(`/guides/hire-requests/${requestId}/accept`),
+  rejectHireRequest: (requestId) => api.put(`/guides/hire-requests/${requestId}/reject`),
+  getOwnerHireRequests: () => api.get('/guides/owner/hire-requests'),
+  assignGuideToBooking: (bookingId, guideId) => api.put('/guides/assign-to-booking', { bookingId, guideId }),
 };
 
 // Gear API
@@ -101,9 +115,26 @@ export const gearAPI = {
   delete: (id) => api.delete(`/gears/${id}`),
 };
 
+// Destination API
+export const destinationAPI = {
+  getAll: (params) => api.get('/destinations', { params }),
+  getById: (id) => api.get(`/destinations/${id}`),
+  create: (formData) =>
+    api.post('/destinations', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+  update: (id, formData) =>
+    api.put(`/destinations/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+  delete: (id) => api.delete(`/destinations/${id}`),
+  addReview: (id, data) => api.post(`/destinations/${id}/reviews`, data),
+};
+
 // Payment API
 export const paymentAPI = {
   createIntent: (bookingId) => api.post('/payments/create-intent', { bookingId }),
+  downloadReceipt: (bookingId) => api.get(`/payments/receipt/${bookingId}`, { responseType: 'blob' }),
 };
 
 // Admin API
@@ -117,6 +148,12 @@ export const adminAPI = {
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
   getPendingVerifications: () => api.get('/admin/pending-verifications'),
   getAnalytics: () => api.get('/admin/analytics'),
+};
+
+// Chat API (Chatbot for surf recommendations)
+export const chatAPI = {
+  initializeChat: () => api.post('/chat/initialize'),
+  sendChatMessage: (data) => api.post('/chat/message', data),
 };
 
 export default api;

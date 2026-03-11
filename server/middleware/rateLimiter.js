@@ -2,8 +2,6 @@ const rateLimit = require('express-rate-limit');
 
 /**
  * Strict limiter for login and register.
- * Brute-force attacks typically fire hundreds of requests per minute —
- * 10 attempts per 15 minutes is generous for real users but kills automation.
  */
 exports.authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -18,7 +16,6 @@ exports.authLimiter = rateLimit({
 
 /**
  * Moderate limiter for password change.
- * Slightly looser than login but still tight enough to block scripted abuse.
  */
 exports.passwordLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes

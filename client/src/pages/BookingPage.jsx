@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { bookingAPI } from '../services/api';
+import { bookingAPI, paymentAPI } from '../services/api';
 import { format } from 'date-fns';
-import { FiCalendar, FiMapPin, FiClock, FiDollarSign, FiX } from 'react-icons/fi';
+import { FiCalendar, FiMapPin, FiClock, FiDollarSign, FiX, FiRefreshCw, FiDownload } from 'react-icons/fi';
 
 const BookingPage = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, pending, approved, completed, cancelled
+  const [refreshing, setRefreshing] = useState(false);
+  const [downloadingBookingId, setDownloadingBookingId] = useState(null);
 
   useEffect(() => {
     fetchBookings();
@@ -24,6 +26,19 @@ const BookingPage = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      const response = await bookingAPI.getMyBookings();
+      setBookings(response.data.data);
+    } catch (error) {
+      console.error('Error refreshing bookings:', error);
+      alert('Failed to refresh bookings. Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleCancelBooking = async (bookingId) => {
     if (!window.confirm('Are you sure you want to cancel this booking?')) {
       return;
@@ -35,6 +50,28 @@ const BookingPage = () => {
       fetchBookings();
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to cancel booking');
+    }
+  };
+
+  const handleDownloadReceipt = async (bookingId) => {
+    try {
+      setDownloadingBookingId(bookingId);
+      const response = await paymentAPI.downloadReceipt(bookingId);
+      
+      // Create a blob URL and download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `receipt-${bookingId.slice(-8)}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Receipt download error:', error);
+      alert('Failed to download receipt. Please try again.');
+    } finally {
+      setDownloadingBookingId(null);
     }
   };
 
@@ -64,9 +101,20 @@ const BookingPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Bookings</h1>
-          <p className="text-gray-600">View and manage your surf spot bookings</p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">My Bookings</h1>
+            <p className="text-gray-600">View and manage your surf spot bookings</p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-ocean-500 hover:bg-ocean-600 disabled:bg-gray-400 text-white font-medium rounded-lg transition"
+            title="Refresh booking list and payment status"
+          >
+            <FiRefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
 
         {/* Filter Tabs */}
@@ -160,28 +208,39 @@ const BookingPage = () => {
 
                     {/* Additional Info */}
                     <div className="flex flex-wrap gap-2 mb-4">
-                      {booking.guide && (
-                        <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
-                          Guide included
-                        </span>
+                      {booking.guide && booking.guide.user && (
+                        <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                          <span>Guide: {booking.guide.user.name || `${booking.guide.user.firstName} ${booking.guide.user.lastName}`}</span>
+                        </div>
                       )}
-                      {booking.gears?.length > 0 && (
-                        <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
-                          {booking.gears.length} Gear item{booking.gears.length > 1 ? 's' : ''}
-                        </span>
+                      {booking.gears && booking.gears.length > 0 && (
+                        <div className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                          <span>
+                            Gear: {booking.gears.map((g, idx) => (
+                              <span key={g.gear?._id || idx}>
+                                {g.gear?.name}{g.quantity > 1 ? ` (×${g.quantity})` : ''}
+                                {idx < booking.gears.length - 1 ? ', ' : ''}
+                              </span>
+                            ))}
+                          </span>
+                        </div>
                       )}
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        booking.paymentStatus === 'paid' 
-                          ? 'bg-green-50 text-green-700' 
-                          : 'bg-yellow-50 text-yellow-700'
-                      }`}>
-                        {booking.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}
-                      </span>
                     </div>
 
                     {/* Actions */}
-                    {booking.status === 'pending' && (
-                      <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3">
+                      {booking.paymentStatus === 'paid' && booking.status === 'approved' && (
+                        <button
+                          onClick={() => handleDownloadReceipt(booking._id)}
+                          disabled={downloadingBookingId === booking._id}
+                          className="flex items-center space-x-2 bg-ocean-500 hover:bg-ocean-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+                          title="Download payment receipt as PDF"
+                        >
+                          <FiDownload className="h-4 w-4" />
+                          <span>{downloadingBookingId === booking._id ? 'Downloading...' : 'Receipt'}</span>
+                        </button>
+                      )}
+                      {booking.status === 'pending' && (
                         <button
                           onClick={() => handleCancelBooking(booking._id)}
                           className="flex items-center space-x-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
@@ -189,8 +248,8 @@ const BookingPage = () => {
                           <FiX className="h-4 w-4" />
                           <span>Cancel Booking</span>
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

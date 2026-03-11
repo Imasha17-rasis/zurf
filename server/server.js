@@ -75,11 +75,13 @@ app.use('/uploads', express.static('uploads'));
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/surfspots', require('./routes/surfSpotRoutes'));
+app.use('/api/destinations', require('./routes/destinationRoutes'));
 app.use('/api/bookings', require('./routes/bookingRoutes'));
 app.use('/api/guides', require('./routes/guideRoutes'));
 app.use('/api/gears', require('./routes/gearRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/payments', require('./routes/paymentRoutes'));
+app.use('/api/chat', require('./routes/chatRoutes'));
 
 // Health check route
 app.get('/api/health', (req, res) => {

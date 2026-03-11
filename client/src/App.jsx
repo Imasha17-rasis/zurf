@@ -7,18 +7,24 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import SurfSpots from './pages/SurfSpots';
 import SurfSpotDetails from './pages/SurfSpotDetails';
 import BookingPage from './pages/BookingPage';
 import Profile from './pages/Profile';
 import DashboardOwner from './pages/DashboardOwner';
 import DashboardGuide from './pages/DashboardGuide';
+import GuideSchedule from './pages/GuideSchedule';
+import GuideProfile from './pages/GuideProfile';
 import AdminPanel from './pages/AdminPanel';
 import Guides from './pages/Guides';
-import Gear from './pages/Gear';
+import GuideDetails from './pages/GuideDetails';
 import OwnerGears from './pages/OwnerGears';
 import OwnerSurfSpots from './pages/OwnerSurfSpots';
 import OwnerAnalytics from './pages/OwnerAnalytics';
 import OwnerBookings from './pages/OwnerBookings';
+import Destinations from './pages/Destinations';
+import DestinationDetails from './pages/DestinationDetails';
+import ChatBot from './pages/ChatBot';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -61,6 +67,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/surf-spots"
+          element={
+            <Layout>
+              <SurfSpots />
+            </Layout>
+          }
+        />
+        <Route
           path="/surf-spots/:id"
           element={
             <Layout>
@@ -77,10 +91,34 @@ function AppRoutes() {
           }
         />
         <Route
-          path="/gear"
+          path="/guides/:id"
           element={
             <Layout>
-              <Gear />
+              <GuideDetails />
+            </Layout>
+          }
+        />
+        <Route
+          path="/destinations"
+          element={
+            <Layout>
+              <Destinations />
+            </Layout>
+          }
+        />
+        <Route
+          path="/destinations/:id"
+          element={
+            <Layout>
+              <DestinationDetails />
+            </Layout>
+          }
+        />
+        <Route
+          path="/chatbot"
+          element={
+            <Layout>
+              <ChatBot />
             </Layout>
           }
         />
@@ -166,6 +204,22 @@ function AppRoutes() {
         />
 
         {/* Protected Routes - Guide */}
+        <Route
+          path="/dashboard/guide/schedule"
+          element={
+            <ProtectedRoute allowedRoles={['guide']}>
+              <GuideSchedule />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/guide/profile"
+          element={
+            <ProtectedRoute allowedRoles={['guide']}>
+              <GuideProfile />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/dashboard/guide/*"
           element={

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { bookingAPI } from '../services/api';
+import { bookingAPI, guideAPI } from '../services/api';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import {
@@ -24,9 +24,12 @@ const OwnerBookings = () => {
     const [spotFilter, setSpotFilter] = useState('all');
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [actionLoading, setActionLoading] = useState(null);
+    const [hireRequests, setHireRequests] = useState([]);
+    const [assigningGuide, setAssigningGuide] = useState(false);
 
     useEffect(() => {
         fetchBookings();
+        fetchHireRequests();
     }, []);
 
     const fetchBookings = async () => {
@@ -38,6 +41,32 @@ const OwnerBookings = () => {
             console.error('Error fetching bookings:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchHireRequests = async () => {
+        try {
+            const response = await guideAPI.getOwnerHireRequests();
+            setHireRequests(response.data.data || []);
+        } catch (error) {
+            console.error('Error fetching hire requests:', error);
+        }
+    };
+
+    const handleAssignGuide = async (bookingId, guideId) => {
+        try {
+            setAssigningGuide(true);
+            await guideAPI.assignGuideToBooking(bookingId, guideId);
+            // Refresh bookings
+            const res = await bookingAPI.getOwnerBookings();
+            setBookings(res.data.data);
+            // Update selected booking with fresh data
+            const updatedBooking = res.data.data.find(b => b._id === bookingId);
+            setSelectedBooking(updatedBooking);
+        } catch (error) {
+            alert(error.response?.data?.message || 'Failed to assign guide');
+        } finally {
+            setAssigningGuide(false);
         }
     };
 
@@ -442,25 +471,39 @@ const OwnerBookings = () => {
                                     <p className="text-xs text-gray-500 mb-1">Total Price</p>
                                     <p className="text-lg font-bold text-green-600">${selectedBooking.totalPrice}</p>
                                 </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 mb-1">Payment</p>
-                                    <span
-                                        className={`px-2 py-1 rounded-full text-xs font-semibold ${selectedBooking.paymentStatus === 'paid'
-                                                ? 'bg-green-100 text-green-800'
-                                                : 'bg-red-100 text-red-800'
-                                            }`}
-                                    >
-                                        {selectedBooking.paymentStatus}
-                                    </span>
-                                </div>
                             </div>
 
                             {selectedBooking.guide && (
                                 <div>
                                     <p className="text-xs text-gray-500 mb-1">Guide</p>
                                     <p className="text-sm text-gray-900">
-                                        {selectedBooking.guide.name || selectedBooking.guide._id}
+                                        {selectedBooking.guide.user?.name || selectedBooking.guide.name || 'Assigned'}
                                     </p>
+                                </div>
+                            )}
+
+                            {!selectedBooking.guide && selectedBooking.status === 'approved' && hireRequests.filter(r => r.status === 'accepted').length > 0 && (
+                                <div>
+                                    <p className="text-xs text-gray-500 mb-2">Assign a Guide</p>
+                                    <select
+                                        onChange={(e) => {
+                                            if (e.target.value) {
+                                                handleAssignGuide(selectedBooking._id, e.target.value);
+                                                e.target.value = '';
+                                            }
+                                        }}
+                                        disabled={assigningGuide}
+                                        className="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                    >
+                                        <option value="">Select a guide...</option>
+                                        {hireRequests
+                                            .filter(r => r.status === 'accepted')
+                                            .map(request => (
+                                                <option key={request._id} value={request.guide._id}>
+                                                    {request.guide.name} (${request.guide.pricePerSession}/session)
+                                                </option>
+                                            ))}
+                                    </select>
                                 </div>
                             )}
 

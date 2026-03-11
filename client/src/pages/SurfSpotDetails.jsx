@@ -9,7 +9,8 @@ import {
   FiDollarSign, 
   FiCheckCircle,
   FiUser,
-  FiPackage
+  FiPackage,
+  FiCalendar
 } from 'react-icons/fi';
 
 const SurfSpotDetails = () => {
@@ -22,6 +23,8 @@ const SurfSpotDetails = () => {
   const [gears, setGears] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showBookingForm, setShowBookingForm] = useState(false);
+  const [bookingStep, setBookingStep] = useState('details'); // Track booking form step
+  const [bookingData, setBookingData] = useState(null); // Track booking details
 
   useEffect(() => {
     fetchSurfSpotDetails();
@@ -30,25 +33,65 @@ const SurfSpotDetails = () => {
   const fetchSurfSpotDetails = async () => {
     try {
       setLoading(true);
-      const [spotResponse, gearsResponse] = await Promise.all([
-        surfSpotAPI.getById(id),
-        gearAPI.getBySurfSpot(id)
-      ]);
+      const surfSpotResponse = await surfSpotAPI.getById(id);
+      setSurfSpot(surfSpotResponse.data.data);
 
-      setSurfSpot(spotResponse.data.data);
-      setGears(gearsResponse.data.data);
+      // Fetch gears assigned to this surf spot
+      const gearsResponse = await gearAPI.getBySurfSpot(id);
+      console.log('📍 Gears assigned to this spot:', gearsResponse.data.data?.length);
+      const assignedGears = gearsResponse.data.data || [];
 
-      // Fetch guides if available
-      if (spotResponse.data.data.guides?.length > 0) {
-        const guidesData = await Promise.all(
-          spotResponse.data.data.guides.map(guideId => 
-            guideAPI.getById(guideId).catch(() => null)
-          )
-        );
-        setGuides(guidesData.filter(g => g !== null).map(g => g.data.data));
+      // Also fetch all gears to get global/unassigned gears
+      try {
+        const allGearsResponse = await gearAPI.getAll();
+        console.log('📍 All gears in system:', allGearsResponse.data.data?.length);
+        
+        // Get gears that are not assigned to any specific spot (can be used everywhere)
+        const globalGears = allGearsResponse.data.data?.filter(gear => 
+          !gear.surfSpot || gear.surfSpot === null || gear.surfSpot === undefined
+        ) || [];
+        
+        console.log('📍 Global/unassigned gears:', globalGears.length);
+
+        // Combine assigned and global gears, removing duplicates
+        const allAvailableGears = [
+          ...assignedGears,
+          ...globalGears.filter(gg => !assignedGears.some(ag => ag._id === gg._id))
+        ];
+
+        console.log('✅ Total available gears (assigned + global):', allAvailableGears.length);
+        setGears(allAvailableGears);
+      } catch (err) {
+        console.error('❌ Error fetching global gears:', err);
+        // Fallback to just assigned gears if global fetch fails
+        setGears(assignedGears);
+      }
+
+      console.log('📍 Surf Spot:', surfSpotResponse.data.data);
+
+      // Fetch hired guides for this surf spot
+      // Get all guides and filter for those with accepted hire requests for this spot
+      try {
+        const allGuidesResponse = await guideAPI.getAll();
+        console.log('📍 All guides fetched:', allGuidesResponse.data.data?.length);
+        
+        // Filter guides that have been hired (accepted hireRequest) for this surf spot
+        const hiredGuides = allGuidesResponse.data.data?.filter(guide => {
+          const acceptedHire = guide.hireRequests?.some(
+            hire => hire.surfSpot === id && hire.status === 'accepted'
+          );
+          return acceptedHire;
+        }) || [];
+        
+        console.log('✅ Hired guides for this spot:', hiredGuides.length);
+        setGuides(hiredGuides);
+      } catch (err) {
+        console.error('❌ Error fetching guides:', err);
+        setGuides([]);
       }
     } catch (error) {
-      console.error('Error fetching surf spot details:', error);
+      console.error('❌ Error fetching surf spot details:', error);
+      console.error('❌ Error details:', error.response?.data);
     } finally {
       setLoading(false);
     }
@@ -57,6 +100,76 @@ const SurfSpotDetails = () => {
   const handleBookingSuccess = () => {
     alert('Booking created successfully! Check your bookings page.');
     navigate('/my-bookings');
+  };
+
+  const handleBookingStepChange = (step, data) => {
+    setBookingStep(step);
+    setBookingData(data);
+  };
+
+  // Helper function to get guide name from booking data
+  const getGuideName = () => {
+    if (!bookingData?.booking?.guide) return null;
+
+    const guide = bookingData.booking.guide;
+    console.log('📍 Attempting to get guide name from:', guide);
+
+    // If guide is a full object with user property
+    if (guide?.user?.name) {
+      console.log('✅ Found guide name from guide.user.name:', guide.user.name);
+      return guide.user.name;
+    }
+
+    // If guide is an ID string or ObjectId
+    const guideId = typeof guide === 'string' ? guide : guide?._id?.toString?.() || guide?.toString?.();
+    console.log('📍 Looking up guide ID:', guideId);
+
+    if (guideId) {
+      const foundGuide = guides.find(g => {
+        const gId = g._id?.toString ? g._id.toString() : g._id;
+        return gId === guideId || g._id === guideId;
+      });
+
+      if (foundGuide?.user?.name) {
+        console.log('✅ Found guide name from guides array:', foundGuide.user.name);
+        return foundGuide.user.name;
+      }
+    }
+
+    console.log('❌ Could not find guide name');
+    return null;
+  };
+
+  // Helper function to get gear name from booking data
+  const getGearName = (gearItem) => {
+    if (!gearItem) return 'Unknown';
+
+    // If gearItem is a full object with name property
+    if (gearItem?.gear?.name) {
+      return gearItem.gear.name;
+    }
+
+    if (gearItem?.name) {
+      return gearItem.name;
+    }
+
+    // If gearItem.gear is an ID string, look it up
+    const gearId = typeof gearItem.gear === 'string' 
+      ? gearItem.gear 
+      : gearItem.gear?._id?.toString?.() || gearItem.gear?.toString?.();
+
+    if (gearId) {
+      const foundGear = gears.find(g => {
+        const gId = g._id?.toString ? g._id.toString() : g._id;
+        return gId === gearId || g._id === gearId;
+      });
+
+      if (foundGear?.name) {
+        return foundGear.name;
+      }
+    }
+
+    return 'Unknown gear';
   };
 
   if (loading) {
@@ -138,7 +251,7 @@ const SurfSpotDetails = () => {
             </div>
 
             {/* Available Guides */}
-            {guides.length > 0 && (
+            {guides.length > 0 && bookingStep === 'details' && (
               <div className="bg-white rounded-xl shadow-md p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
                   <FiUser className="mr-2" />
@@ -167,32 +280,110 @@ const SurfSpotDetails = () => {
               </div>
             )}
 
-            {/* Available Gear */}
-            {gears.length > 0 && (
+            {/* Available Gears */}
+            {gears.length > 0 && bookingStep === 'details' && (
               <div className="bg-white rounded-xl shadow-md p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
                   <FiPackage className="mr-2" />
-                  Available Gear
+                  Available Gears
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
                   {gears.map(gear => (
-                    <div key={gear._id} className="border border-gray-200 rounded-lg p-4">
+                    <div key={gear._id} className="border border-gray-200 rounded-lg p-4 hover:border-ocean-300 transition">
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-gray-900">{gear.name}</h3>
-                        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
-                          {gear.type}
-                        </span>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900">{gear.name}</h3>
+                          <p className="text-sm text-gray-600">
+                            {gear.type}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-ocean-600">
+                            ${gear.pricePerHour}
+                          </p>
+                          <p className="text-xs text-gray-500">per hour</p>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center justify-between text-sm border-t border-gray-100 pt-3 mt-3">
                         <span className="text-gray-600">
                           {gear.quantityAvailable} available
                         </span>
-                        <span className="font-bold text-ocean-600">
-                          ${gear.pricePerHour}/hr
-                        </span>
+                        {gear.isVerified && (
+                          <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                            Verified
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Booking Summary - shown during payment/success */}
+            {bookingData && bookingStep !== 'details' && (
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">Booking Summary</h2>
+                <div className="space-y-4">
+                  {/* Booking Details */}
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                      <FiCalendar className="mr-2" />
+                      Date & Time
+                    </h3>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <p>
+                        <span className="font-medium">Date:</span> {new Date(bookingData.booking.bookingDate).toLocaleDateString()}
+                      </p>
+                      <p>
+                        <span className="font-medium">Start Time:</span> {bookingData.booking.startTime}
+                      </p>
+                      <p>
+                        <span className="font-medium">Duration:</span> {bookingData.booking.durationHours} hour{bookingData.booking.durationHours > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Guide Addon */}
+                  {getGuideName() && (
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                        <FiUser className="mr-2" />
+                        Selected Guide
+                      </h3>
+                      <p className="text-sm text-gray-600 font-medium">
+                        ✓ {getGuideName()}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Gears Addon */}
+                  {bookingData.booking.gears && bookingData.booking.gears.length > 0 && (
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                        <FiPackage className="mr-2" />
+                        Selected Gears
+                      </h3>
+                      <div className="space-y-2">
+                        {bookingData.booking.gears.map((gearItem, idx) => (
+                          <div key={idx} className="text-sm text-gray-600 font-medium">
+                            ✓ {getGearName(gearItem)}
+                            {gearItem.quantity && ` x${gearItem.quantity}`}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Price Summary */}
+                  <div className="bg-ocean-50 border border-ocean-200 rounded-lg p-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-gray-900">Total Amount</span>
+                      <span className="text-2xl font-bold text-ocean-700 flex items-center">
+                        <FiDollarSign className="h-5 w-5" />{bookingData.totalPrice}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -223,6 +414,7 @@ const SurfSpotDetails = () => {
                   guides={guides}
                   gears={gears}
                   onSuccess={handleBookingSuccess}
+                  onStepChange={handleBookingStepChange}
                 />
               )}
             </div>

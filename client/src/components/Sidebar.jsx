@@ -1,5 +1,6 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { 
   FiHome, 
   FiMapPin, 
@@ -8,11 +9,19 @@ import {
   FiUsers, 
   FiBarChart2,
   FiSettings,
-  FiShield
+  FiShield,
+  FiLogOut
 } from 'react-icons/fi';
 
 const Sidebar = ({ role }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const isActive = (path) => {
     return location.pathname === path;
@@ -42,8 +51,8 @@ const Sidebar = ({ role }) => {
   const links = role === 'owner' ? ownerLinks : role === 'guide' ? guideLinks : adminLinks;
 
   return (
-    <aside className="bg-white w-64 min-h-screen shadow-lg">
-      <div className="p-6">
+    <aside className="bg-white w-64 min-h-screen shadow-lg flex flex-col">
+      <div className="p-6 flex-1">
         <h2 className="text-xl font-bold text-gray-900 mb-6">
           {role === 'owner' ? 'Owner Panel' : role === 'guide' ? 'Guide Panel' : 'Admin Panel'}
         </h2>
@@ -63,6 +72,17 @@ const Sidebar = ({ role }) => {
             </Link>
           ))}
         </nav>
+      </div>
+
+      {/* Logout Button */}
+      <div className="p-6 border-t border-gray-200">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors font-medium"
+        >
+          <FiLogOut className="h-5 w-5" />
+          <span>Logout</span>
+        </button>
       </div>
     </aside>
   );

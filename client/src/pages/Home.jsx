@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { surfSpotAPI } from '../services/api';
+import { Link, useNavigate } from 'react-router-dom';
+import { surfSpotAPI, destinationAPI } from '../services/api';
 import SurfSpotCard from '../components/SurfSpotCard';
+import { popularDestinations } from '../data/destinations';
 import {
   FiSearch,
   FiMapPin,
@@ -19,6 +20,7 @@ const Home = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchSurfSpots();
@@ -48,12 +50,8 @@ const Home = () => {
   };
 
   const searchDestination = (destinationName) => {
-    // Extract just the city name (before the comma)
-    const city = destinationName.split(',')[0].trim();
-    setSearchTerm(city);
-    setShowSuggestions(false);
-    setHasSearched(true);
-    fetchSurfSpots({ search: city });
+    // Navigate to destinations page with search parameter
+    navigate(`/destinations?search=${encodeURIComponent(destinationName)}`);
   };
 
   const clearSearch = () => {
@@ -61,34 +59,6 @@ const Home = () => {
     setHasSearched(false);
     fetchSurfSpots();
   };
-
-  // Popular destinations data
-  const popularDestinations = [
-    {
-      name: 'Weligama, Sri Lanka',
-      image: 'https://images.unsplash.com/photo-1502680390469-be75c86b636f?w=800',
-      spots: 12,
-      description: 'Known for its long sandy beach and gentle waves, perfect for beginners.'
-    },
-    {
-      name: 'Arugam Bay, Sri Lanka',
-      image: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800',
-      spots: 25,
-      description: 'Known for its consistent waves, it\'s a favorite among surfers and hosts several surf competitions.'
-    },
-    {
-      name: 'Hikkaduwa, Sri Lanka',
-      image: 'https://images.unsplash.com/photo-1528150177508-7cc0c36cda5c?w=800',
-      spots: 18,
-      description: 'Offers a variety of waves suitable for all levels, making it a popular destination for both beginners and experienced surfers.'
-    },
-    {
-      name: 'Mirissa, Sri Lanka',
-      image: 'https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=800',
-      spots: 8,
-      description: 'Offers great waves and a stunning beach setting, popular for both surfing and relaxation.'
-    }
-  ];
 
   // Testimonials data
   const testimonials = [
@@ -294,6 +264,16 @@ const Home = () => {
               </div>
             ))}
           </div>
+
+          <div className="text-center mt-12">
+            <Link
+              to="/destinations"
+              className="inline-flex items-center space-x-2 bg-ocean-500 hover:bg-ocean-600 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105"
+            >
+              <span>Explore All Destinations</span>
+              <FiArrowRight className="h-5 w-5" />
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -405,8 +385,7 @@ const Home = () => {
               <p className="text-xl text-gray-600">Handpicked locations for the best experience</p>
             </div>
             <Link
-              to="/"
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              to="/surf-spots"
               className="hidden md:flex items-center space-x-2 text-ocean-600 hover:text-ocean-700 font-semibold"
             >
               <span>View All</span>
@@ -432,8 +411,7 @@ const Home = () => {
 
               <div className="text-center mt-12">
                 <Link
-                  to="/"
-                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  to="/surf-spots"
                   className="inline-flex items-center space-x-2 bg-ocean-500 hover:bg-ocean-600 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105"
                 >
                   <span>Explore All Spots</span>

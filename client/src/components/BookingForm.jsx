@@ -24,6 +24,76 @@ const BookingDetailsForm = ({ surfSpot, guides, gears, onProceed }) => {
   const [calculatedPrice, setCalculatedPrice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [availableGuides, setAvailableGuides] = useState([]);
+  const [availableGears, setAvailableGears] = useState([]);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+
+  // Log props on mount
+  useEffect(() => {
+    console.log('📍 BookingDetailsForm received props:');
+    console.log('  guides:', guides);
+    console.log('  gears:', gears);
+    console.log('  gears.length:', gears?.length);
+    console.log('  surfSpot:', surfSpot);
+  }, []);
+
+  // Log gears separately to track changes
+  useEffect(() => {
+    console.log('🔍 Gears prop changed:', gears);
+  }, [gears]);
+
+  // Log availableGears changes
+  useEffect(() => {
+    console.log('🔍 Available gears changed:', availableGears);
+  }, [availableGears]);
+
+  // Check availability whenever date/time/duration changes
+  useEffect(() => {
+    if (!formData.bookingDate || !formData.startTime) return;
+
+    checkAvailabilityForDateTime();
+  }, [formData.bookingDate, formData.startTime, formData.durationHours, surfSpot._id]);
+
+  const checkAvailabilityForDateTime = async () => {
+    try {
+      setCheckingAvailability(true);
+      
+      const guideIdsList = guides.map(g => g._id);
+      
+      const payload = {
+        surfSpotId: surfSpot._id,
+        bookingDate: formData.bookingDate,
+        startTime: formData.startTime,
+        durationHours: Number(formData.durationHours),
+        guideIds: guideIdsList
+      };
+      
+      console.log('📍 Checking availability with payload:', payload);
+      console.log('  - Guides passed to form:', guides.length, guides.map(g => ({ id: g._id, name: g.user?.name })));
+      
+      const response = await bookingAPI.checkAvailability(payload);
+      
+      console.log('✅ Availability response:', response.data);
+      
+      if (response.data.success) {
+        setAvailableGuides(response.data.data.availableGuides || []);
+        setAvailableGears(response.data.data.availableGears || []);
+        
+        console.log('✅ Available guides:', response.data.data.availableGuides || []);
+        console.log('✅ Available gears:', response.data.data.availableGears || []);
+        
+        // Clear selection if current selection is no longer available
+        if (formData.guide && !response.data.data.availableGuides.find(g => g._id === formData.guide)) {
+          setFormData(prev => ({ ...prev, guide: '' }));
+        }
+      }
+    } catch (err) {
+      console.error('❌ Error checking availability:', err.response?.data || err.message);
+      setError('Unable to check availability. Please try again.');
+    } finally {
+      setCheckingAvailability(false);
+    }
+  };
 
   // Recalculate price whenever relevant fields change
   useEffect(() => {
@@ -35,10 +105,11 @@ const BookingDetailsForm = ({ surfSpot, guides, gears, onProceed }) => {
           surfSpotId: surfSpot._id,
           guideId: formData.guide || null,
           gearIds: formData.gears,
-          durationHours: formData.durationHours,
+          durationHours: Number(formData.durationHours),
         });
         setCalculatedPrice(response.data.data);
-      } catch {
+      } catch (err) {
+        console.error('❌ Error calculating price:', err);
         // Non-critical — price preview failing shouldn't block the user
       }
     };
@@ -85,13 +156,31 @@ const BookingDetailsForm = ({ surfSpot, guides, gears, onProceed }) => {
       // Hand off to the payment step
       onProceed({ booking, clientSecret, totalPrice: booking.totalPrice });
     } catch (err) {
-      setError(err.response?.data?.message || 'Something went wrong. Please try again.');
+      const message = err.response?.data?.message || 'Something went wrong. Please try again.';
+      const unavailableItems = err.response?.data?.unavailableItems;
+      
+      if (unavailableItems) {
+        const itemDetails = unavailableItems.map(item => `- ${item.gearName || 'Item'}: ${item.reason}`).join('\n');
+        setError(`${message}\n${itemDetails}`);
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const today = new Date().toISOString().split('T')[0];
+  
+  // Get gear availability info
+  const getGearAvailabilityInfo = (gearId) => {
+    const availGear = availableGears.find(g => g._id === gearId);
+    if (!availGear) return { available: 0, total: 0 };
+    return {
+      available: availGear.availableQuantity,
+      total: availGear.quantityAvailable
+    };
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -158,8 +247,13 @@ const BookingDetailsForm = ({ surfSpot, guides, gears, onProceed }) => {
       {guides && guides.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Guide (Optional)
+            Select Guide (Optional Add-on)
           </label>
+          {!formData.bookingDate || !formData.startTime ? (
+            <p className="text-xs text-gray-500 mb-2">👆 Select a date and time to see available guides</p>
+          ) : checkingAvailability ? (
+            <p className="text-xs text-blue-600 mb-2">🔄 Checking guide availability...</p>
+          ) : null}
           <select
             name="guide"
             value={formData.guide}
@@ -167,12 +261,23 @@ const BookingDetailsForm = ({ surfSpot, guides, gears, onProceed }) => {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-transparent"
           >
             <option value="">No guide</option>
-            {guides.map((guide) => (
-              <option key={guide._id} value={guide._id}>
-                {guide.user?.name} — ${guide.pricePerSession} ({guide.experienceYears} yrs exp)
-              </option>
-            ))}
+            {guides.map((guide) => {
+              const isAvailable = availableGuides.length > 0 ? availableGuides.some(ag => ag._id === guide._id) : true;
+              return (
+                <option 
+                  key={guide._id} 
+                  value={guide._id}
+                  disabled={availableGuides.length > 0 && !isAvailable}
+                >
+                  {guide.user?.name} — ${guide.pricePerSession} ({guide.experienceYears} yrs exp)
+                  {availableGuides.length > 0 && !isAvailable && ' [Not Available]'}
+                </option>
+              );
+            })}
           </select>
+          {formData.guide && availableGuides.length > 0 && !availableGuides.some(ag => ag._id === formData.guide) && (
+            <p className="text-sm text-red-600 mt-1">⚠️ This guide is not available for your selected date/time</p>
+          )}
         </div>
       )}
 
@@ -180,25 +285,46 @@ const BookingDetailsForm = ({ surfSpot, guides, gears, onProceed }) => {
       {gears && gears.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Gear (Optional)
+            Select Gear (Optional Add-ons)
           </label>
+          {!formData.bookingDate || !formData.startTime ? (
+            <p className="text-xs text-gray-500 mb-2">👆 Select a date and time to see available gear</p>
+          ) : checkingAvailability ? (
+            <p className="text-xs text-blue-600 mb-2">🔄 Checking gear availability...</p>
+          ) : null}
           <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
-            {gears.map((gear) => (
-              <label key={gear._id} className="flex items-center space-x-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.gears.includes(gear._id)}
-                  onChange={() => handleGearChange(gear._id)}
-                  className="w-4 h-4 text-ocean-500 rounded focus:ring-ocean-500"
-                />
-                <span className="flex-1 text-sm text-gray-700">
-                  {gear.name} ({gear.type})
-                </span>
-                <span className="text-sm font-medium text-gray-900">
-                  ${gear.pricePerHour}/hr
-                </span>
-              </label>
-            ))}
+            {gears.map((gear) => {
+              const availInfo = getGearAvailabilityInfo(gear._id);
+              const isAvailable = availableGears.length > 0 ? availInfo.available > 0 : true;
+              
+              return (
+                <label 
+                  key={gear._id} 
+                  className={`flex items-center space-x-3 cursor-pointer ${!isAvailable && availableGears.length > 0 ? 'opacity-50 pointer-events-none' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.gears.includes(gear._id)}
+                    onChange={() => handleGearChange(gear._id)}
+                    disabled={!isAvailable && availableGears.length > 0}
+                    className="w-4 h-4 text-ocean-500 rounded focus:ring-ocean-500"
+                  />
+                  <span className="flex-1 text-sm text-gray-700">
+                    {gear.name} ({gear.type})
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {availableGears.length > 0 ? (
+                      isAvailable ? `${availInfo.available} available` : 'Unavailable'
+                    ) : (
+                      '...'
+                    )}
+                  </span>
+                  <span className="text-sm font-medium text-gray-900">
+                    ${gear.pricePerHour}/hr
+                  </span>
+                </label>
+              );
+            })}
           </div>
         </div>
       )}
@@ -344,30 +470,82 @@ const PaymentForm = ({ totalPrice, clientSecret, onBack, onSuccess }) => {
 };
 
 // Step 3: Success screen
-const PaymentSuccess = () => (
-  <div className="text-center py-8 space-y-4">
-    <FiCheckCircle className="h-16 w-16 text-green-500 mx-auto" />
-    <h3 className="text-xl font-bold text-gray-900">Payment successful!</h3>
-    <p className="text-gray-600">
-      Your booking is confirmed. You can track it on the My Bookings page.
-    </p>
-  </div>
-);
+const PaymentSuccess = ({ bookingId }) => {
+  const [paymentStatus, setPaymentStatus] = useState('processing');
+
+  useEffect(() => {
+    // Wait a bit for webhook to process, then check payment status
+    const timer = setTimeout(async () => {
+      try {
+        const response = await bookingAPI.getById(bookingId);
+        if (response.data.data.paymentStatus === 'paid') {
+          setPaymentStatus('confirmed');
+        }
+      } catch (err) {
+        console.error('Error checking payment status:', err);
+        // Still consider it a success even if we can't verify
+      }
+    }, 2000); // Wait 2 seconds for webhook to process
+
+    return () => clearTimeout(timer);
+  }, [bookingId]);
+
+  return (
+    <div className="text-center py-8 space-y-4">
+      <FiCheckCircle className="h-16 w-16 text-green-500 mx-auto" />
+      <h3 className="text-xl font-bold text-gray-900">Payment successful!</h3>
+      <p className="text-gray-600">
+        Your booking is confirmed and payment has been processed.
+      </p>
+      
+      {paymentStatus === 'processing' && (
+        <p className="text-sm text-blue-600 font-medium">
+          Processing payment confirmation...
+        </p>
+      )}
+      {paymentStatus === 'confirmed' && (
+        <p className="text-sm text-green-600 font-medium">
+          ✓ Payment confirmed
+        </p>
+      )}
+      
+      <p className="text-sm text-gray-500 mt-4">
+        Your payment receipt will be available to download after the surf spot owner approves your booking. You can download it anytime from your My Bookings page.
+      </p>
+    </div>
+  );
+};
 
 // Root export: orchestrates the three steps
-const BookingForm = ({ surfSpot, guides, gears, onSuccess }) => {
+const BookingForm = ({ surfSpot, guides, gears, onSuccess, onStepChange }) => {
   const [step, setStep] = useState('details'); // 'details' | 'payment' | 'success'
   const [paymentData, setPaymentData] = useState(null);
 
   const handleProceedToPayment = (data) => {
     setPaymentData(data);
     setStep('payment');
+    // Notify parent about step and booking data
+    if (onStepChange) {
+      onStepChange('payment', data);
+    }
   };
 
   const handlePaymentSuccess = () => {
     setStep('success');
+    // Notify parent about completion
+    if (onStepChange) {
+      onStepChange('success', paymentData);
+    }
     // Give the user a moment to read the success screen before navigating away
     setTimeout(() => { if (onSuccess) onSuccess(); }, 2000);
+  };
+
+  const handleBackToDetails = () => {
+    setStep('details');
+    // Notify parent we're back to details
+    if (onStepChange) {
+      onStepChange('details', null);
+    }
   };
 
   return (
@@ -386,12 +564,12 @@ const BookingForm = ({ surfSpot, guides, gears, onSuccess }) => {
           booking={paymentData.booking}
           clientSecret={paymentData.clientSecret}
           totalPrice={paymentData.totalPrice}
-          onBack={() => setStep('details')}
+          onBack={handleBackToDetails}
           onSuccess={handlePaymentSuccess}
         />
       )}
 
-      {step === 'success' && <PaymentSuccess />}
+      {step === 'success' && paymentData && <PaymentSuccess bookingId={paymentData.booking._id} />}
     </Elements>
   );
 };

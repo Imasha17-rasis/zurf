@@ -1,5 +1,6 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const Booking = require('../models/Booking');
+const { generateReceiptPDF } = require('../utils/receiptGenerator');
 
 // @desc    Create a Stripe PaymentIntent for an existing booking
 // @route   POST /api/payments/create-intent
@@ -85,18 +86,129 @@ exports.handleWebhook = async (req, res) => {
 
     if (event.type === 'payment_intent.succeeded') {
         const paymentIntent = event.data.object;
+        console.log('✅ Payment succeeded event received for:', paymentIntent.id);
 
         try {
-            await Booking.findOneAndUpdate(
+            const result = await Booking.findOneAndUpdate(
                 { stripePaymentIntentId: paymentIntent.id },
-                { paymentStatus: 'paid' }
+                { paymentStatus: 'paid' },
+                { new: true }
             );
+            
+            if (result) {
+                console.log('✅ Booking payment status updated successfully:', result._id);
+            } else {
+                console.warn('⚠️ No booking found with this payment intent ID:', paymentIntent.id);
+            }
         } catch (err) {
             // Log but don't return an error — Stripe will retry if we send non-200
-            console.error('Failed to update booking payment status:', err.message);
+            console.error('❌ Failed to update booking payment status:', err.message);
         }
     }
 
     // Always acknowledge receipt so Stripe doesn't retry
     res.json({ received: true });
+};
+
+// @desc    Download payment receipt as PDF
+// @route   GET /api/payments/receipt/:bookingId
+// @access  Private (Surfer — must own the booking)
+exports.downloadReceipt = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+
+        if (!bookingId) {
+            return res.status(400).json({
+                success: false,
+                message: 'bookingId is required',
+            });
+        }
+
+        // Fetch booking with all populated references
+        console.log('📍 Fetching booking:', bookingId);
+        const booking = await Booking.findById(bookingId);
+        
+        // Populate surfer
+        await booking.populate('surfer', 'name email phone');
+        
+        // Populate surf spot
+        await booking.populate('surfSpot', 'name description location');
+        
+        // Populate gears
+        await booking.populate('gears.gear', 'name pricePerDay');
+        
+        // Populate guide with nested user if guide exists
+        if (booking.guide) {
+            await booking.populate({
+                path: 'guide',
+                populate: {
+                    path: 'user',
+                    select: 'name'
+                }
+            });
+        }
+
+        console.log('📍 Booking fetched:', {
+            id: booking?._id,
+            surfer: booking?.surfer?.name,
+            surfSpot: booking?.surfSpot?.name,
+            guide: booking?.guide ? `${booking.guide.user?.name} (ID: ${booking.guide._id})` : 'No guide',
+            gears: booking?.gears?.length || 0,
+            status: booking?.status,
+            paymentStatus: booking?.paymentStatus
+        });
+
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: 'Booking not found',
+            });
+        }
+
+        // Verify the surfer owns this booking
+        if (booking.surfer._id.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorised to download this receipt',
+            });
+        }
+
+        // Verify payment is complete
+        if (booking.paymentStatus !== 'paid') {
+            return res.status(400).json({
+                success: false,
+                message: 'This booking has not been paid yet',
+            });
+        }
+
+        // Verify booking is approved
+        if (booking.status !== 'approved') {
+            return res.status(400).json({
+                success: false,
+                message: 'Receipt is only available for approved bookings',
+            });
+        }
+
+        // Generate PDF
+        console.log('📄 Generating receipt for booking:', bookingId);
+        console.log('   Surfer:', booking.surfer.name);
+        console.log('   Guide:', booking.guide ? (booking.guide.user?.name || 'Unknown') : 'None');
+        console.log('   Gears:', booking.gears.length);
+        
+        const pdfBuffer = await generateReceiptPDF(booking, booking.surfer);
+
+        // Set response headers for PDF download
+        const filename = `receipt-${booking._id.toString().slice(-8)}.pdf`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+
+        // Send the PDF
+        console.log('✅ Receipt generated successfully:', filename);
+        res.send(pdfBuffer);
+    } catch (error) {
+        console.error('❌ Error downloading receipt:', error.message);
+        console.error('Stack:', error.stack);
+        res.status(500).json({ success: false, message: error.message });
+    }
 };

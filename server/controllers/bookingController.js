@@ -2,6 +2,13 @@ const Booking = require('../models/Booking');
 const SurfSpot = require('../models/SurfSpot');
 const Guide = require('../models/Guide');
 const Gear = require('../models/Gear');
+const {
+  checkGuideAvailability,
+  checkGearAvailability,
+  getAvailableGuides,
+  getAvailableGears
+} = require('../utils/availabilityChecker');
+const { isGuidehiredForSurfSpot } = require('../utils/guideHelper');
 
 // @desc    Calculate total price for booking
 // @route   POST /api/bookings/calculate-price
@@ -64,9 +71,7 @@ exports.createBooking = async (req, res) => {
       durationHours
     } = req.body;
 
-    // Calculate total price
-    let totalPrice = 0;
-
+    // Validate surf spot exists
     const spot = await SurfSpot.findById(surfSpot);
     if (!spot) {
       return res.status(404).json({
@@ -74,6 +79,54 @@ exports.createBooking = async (req, res) => {
         message: 'Surf spot not found'
       });
     }
+
+    // Check guide availability if provided
+    if (guide) {
+      // Check if guide is hired for this surf spot
+      const isHired = await isGuidehiredForSurfSpot(guide, surfSpot);
+      if (!isHired) {
+        return res.status(400).json({
+          success: false,
+          message: 'This guide is not available for this surf spot'
+        });
+      }
+
+      const guideAvailability = await checkGuideAvailability(guide, bookingDate, startTime, durationHours);
+      if (!guideAvailability.available) {
+        return res.status(400).json({
+          success: false,
+          message: `Guide unavailable: ${guideAvailability.reason}`
+        });
+      }
+    }
+
+    // Check gear availability if provided
+    let gearsForBooking = [];
+    if (gears && gears.length > 0) {
+      // Convert gears array to proper format with quantities (default 1 each)
+      const gearsData = Array.isArray(gears) ? gears.map(gearId => ({
+        gearId,
+        quantity: 1
+      })) : [];
+
+      const gearAvailability = await checkGearAvailability(gearsData, bookingDate);
+      if (!gearAvailability.available) {
+        return res.status(400).json({
+          success: false,
+          message: 'Some gear items are not available',
+          unavailableItems: gearAvailability.unavailableItems
+        });
+      }
+      
+      // Format gears for booking with quantities
+      gearsForBooking = gearsData.map(item => ({
+        gear: item.gearId,
+        quantity: item.quantity
+      }));
+    }
+
+    // Calculate total price
+    let totalPrice = 0;
     totalPrice += spot.pricePerHour * durationHours;
 
     if (guide) {
@@ -83,18 +136,21 @@ exports.createBooking = async (req, res) => {
       }
     }
 
-    if (gears && gears.length > 0) {
-      const gearDocs = await Gear.find({ _id: { $in: gears } });
-      gearDocs.forEach(gear => {
-        totalPrice += gear.pricePerHour * durationHours;
+    if (gearsForBooking && gearsForBooking.length > 0) {
+      const gearDocs = await Gear.find({ _id: { $in: gearsForBooking.map(g => g.gear) } });
+      gearsForBooking.forEach(gearBooking => {
+        const gearDoc = gearDocs.find(g => g._id.toString() === gearBooking.gear.toString());
+        if (gearDoc) {
+          totalPrice += gearDoc.pricePerHour * durationHours * gearBooking.quantity;
+        }
       });
     }
 
     const booking = await Booking.create({
       surfer: req.user._id,
       surfSpot,
-      guide,
-      gears,
+      guide: guide || null,
+      gears: gearsForBooking.length > 0 ? gearsForBooking : [],
       bookingDate,
       startTime,
       durationHours,
@@ -103,12 +159,125 @@ exports.createBooking = async (req, res) => {
 
     const populatedBooking = await Booking.findById(booking._id)
       .populate('surfSpot', 'name location')
-      .populate('guide')
-      .populate('gears');
+      .populate({
+        path: 'guide',
+        populate: {
+          path: 'user',
+          select: 'name'
+        }
+      })
+      .populate('gears.gear');
 
     res.status(201).json({
       success: true,
       data: populatedBooking
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Check availability for guides and gears for a specific booking date/time
+// @route   POST /api/bookings/check-availability
+// @access  Private
+exports.checkAvailability = async (req, res) => {
+  try {
+    const { surfSpotId, bookingDate, startTime, durationHours, guideIds } = req.body;
+
+    console.log('📍 checkAvailability called with:', { surfSpotId, bookingDate, startTime, durationHours, guideIds });
+
+    // Validate surf spot exists
+    const surfSpot = await SurfSpot.findById(surfSpotId);
+    if (!surfSpot) {
+      return res.status(404).json({
+        success: false,
+        message: 'Surf spot not found'
+      });
+    }
+
+    // Get available guides
+    const availableGuides = guideIds && guideIds.length > 0 
+      ? await getAvailableGuides(surfSpotId, bookingDate, startTime, durationHours, guideIds)
+      : [];
+
+    console.log('📍 Available guides:', availableGuides);
+
+    // Get available gears
+    const availableGears = await getAvailableGears(surfSpotId, bookingDate);
+
+    console.log('📍 Available gears:', availableGears);
+
+    res.json({
+      success: true,
+      data: {
+        availableGuides: availableGuides.map(guide => ({
+          _id: guide._id,
+          name: guide.user?.name,
+          experienceYears: guide.experienceYears,
+          pricePerSession: guide.pricePerSession,
+          rating: guide.rating
+        })),
+        availableGears: availableGears.map(gear => ({
+          _id: gear._id,
+          name: gear.name,
+          type: gear.type,
+          pricePerHour: gear.pricePerHour,
+          quantityAvailable: gear.quantityAvailable,
+          availableQuantity: gear.availableQuantity
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error in checkAvailability:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Check specific guide availability
+// @route   POST /api/bookings/check-guide-availability
+// @access  Private
+exports.checkGuideAvailabilityEndpoint = async (req, res) => {
+  try {
+    const { guideId, bookingDate, startTime, durationHours } = req.body;
+
+    const availability = await checkGuideAvailability(guideId, bookingDate, startTime, durationHours);
+
+    res.json({
+      success: true,
+      data: availability
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Check specific gear availability
+// @route   POST /api/bookings/check-gear-availability
+// @access  Private
+exports.checkGearAvailabilityEndpoint = async (req, res) => {
+  try {
+    const { gearIds, bookingDate } = req.body;
+
+    // Format gear data with default quantity of 1
+    const gearsData = gearIds.map(gearId => ({
+      gearId,
+      quantity: 1
+    }));
+
+    const availability = await checkGearAvailability(gearsData, bookingDate);
+
+    res.json({
+      success: true,
+      data: availability
     });
   } catch (error) {
     res.status(500).json({
@@ -125,8 +294,14 @@ exports.getUserBookings = async (req, res) => {
   try {
     const bookings = await Booking.find({ surfer: req.user._id })
       .populate('surfSpot', 'name location images')
-      .populate('guide')
-      .populate('gears')
+      .populate({
+        path: 'guide',
+        populate: {
+          path: 'user',
+          select: 'firstName lastName name'
+        }
+      })
+      .populate('gears.gear')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -157,8 +332,14 @@ exports.getOwnerBookings = async (req, res) => {
     })
       .populate('surfer', 'name email')
       .populate('surfSpot', 'name location')
-      .populate('guide')
-      .populate('gears')
+      .populate({
+        path: 'guide',
+        populate: {
+          path: 'user',
+          select: 'name email'
+        }
+      })
+      .populate('gears.gear')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -268,8 +449,14 @@ exports.getBookingById = async (req, res) => {
     const booking = await Booking.findById(req.params.id)
       .populate('surfer', 'name email')
       .populate('surfSpot', 'name location')
-      .populate('guide')
-      .populate('gears');
+      .populate({
+        path: 'guide',
+        populate: {
+          path: 'user',
+          select: 'firstName lastName name'
+        }
+      })
+      .populate('gears.gear');
 
     if (!booking) {
       return res.status(404).json({
@@ -350,15 +537,16 @@ exports.getMonthlyReport = async (req, res) => {
       bookingDate: { $gte: firstDay, $lte: lastDay },
       status: { $in: ['approved', 'completed'] },
       paymentStatus: 'paid'
-    }).populate('gears').populate('guide');
+    }).populate('gears.gear').populate('guide');
 
     const totalIncome = bookings.reduce((sum, booking) => sum + booking.totalPrice, 0);
 
     // Most rented gear
     const gearCount = {};
     bookings.forEach(booking => {
-      booking.gears.forEach(gear => {
-        gearCount[gear._id] = (gearCount[gear._id] || 0) + 1;
+      booking.gears.forEach(gearItem => {
+        const gearId = gearItem.gear._id;
+        gearCount[gearId] = (gearCount[gearId] || 0) + gearItem.quantity;
       });
     });
 

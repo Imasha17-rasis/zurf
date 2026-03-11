@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createPaymentIntent, handleWebhook } = require('../controllers/paymentController');
+const { createPaymentIntent, handleWebhook, downloadReceipt } = require('../controllers/paymentController');
 const { protect } = require('../middleware/authMiddleware');
 const { authorize } = require('../middleware/roleMiddleware');
 
@@ -15,6 +15,14 @@ router.post(
     protect,
     authorize('surfer'),
     createPaymentIntent
+);
+
+// Download receipt as PDF
+router.get(
+    '/receipt/:bookingId',
+    protect,
+    authorize('surfer'),
+    downloadReceipt
 );
 
 module.exports = router;

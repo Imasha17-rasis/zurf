@@ -151,8 +151,12 @@ exports.deleteGear = async (req, res) => {
 // @access  Public
 exports.getAllGears = async (req, res) => {
   try {
-    const gears = await Gear.find({ isVerified: true })
+    // Return all gears (verified and unverified) so both assigned and global gears are available
+    const gears = await Gear.find()
       .populate('surfSpot', 'name location');
+
+    console.log('📍 getAllGears: Found', gears.length, 'gears');
+    console.log('📍 Global gears (no surfSpot assigned):', gears.filter(g => !g.surfSpot).length);
 
     res.json({
       success: true,
@@ -225,10 +229,21 @@ exports.getOwnerGears = async (req, res) => {
 // @access  Public
 exports.getGearsBySurfSpot = async (req, res) => {
   try {
-    const gears = await Gear.find({
-      surfSpot: req.params.surfSpotId,
-      isVerified: true
+    const { surfSpotId } = req.params;
+    console.log('📍 getGearsBySurfSpot called for surfSpot:', surfSpotId);
+
+    // Get all gears for this surf spot (verified or not)
+    const allGears = await Gear.find({
+      surfSpot: surfSpotId
     });
+
+    console.log('📍 All gears found for this spot:', allGears.length);
+
+    // Optionally filter for only verified gears if needed
+    // For now, return all gears so they can be added to bookings
+    const gears = allGears;
+
+    console.log('✅ Returning gears:', gears.length);
 
     res.json({
       success: true,
@@ -236,6 +251,7 @@ exports.getGearsBySurfSpot = async (req, res) => {
       data: gears
     });
   } catch (error) {
+    console.error('❌ Error getting gears by surf spot:', error);
     res.status(500).json({
       success: false,
       message: error.message

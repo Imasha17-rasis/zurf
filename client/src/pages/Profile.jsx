@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
 import { FiUser, FiMail, FiShield, FiUpload, FiCheckCircle } from 'react-icons/fi';
@@ -14,6 +14,16 @@ const Profile = () => {
   const [updating, setUpdating] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
+  // Initialize form data on component mount only
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        name: user.name || '',
+        email: user.email || '',
+      });
+    }
+  }, []); // Empty dependency - only run on mount
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -22,20 +32,58 @@ const Profile = () => {
     }));
   };
 
+  // Prevent form submission on Enter key
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+    }
+  };
+
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
+    
+    // Only proceed if in editing mode
+    if (!editing) {
+      return;
+    }
+    
+    // Validate form data
+    if (!formData.name || !formData.name.trim()) {
+      setMessage({ type: 'error', text: 'Full name is required' });
+      return;
+    }
+    
+    if (!formData.email || !formData.email.trim()) {
+      setMessage({ type: 'error', text: 'Email address is required' });
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setMessage({ type: 'error', text: 'Please enter a valid email address' });
+      return;
+    }
+
     setUpdating(true);
     setMessage({ type: '', text: '' });
 
     try {
+      console.log('Updating profile with data:', formData);
       const response = await authAPI.updateProfile(formData);
-      updateUser(response.data.data);
+      console.log('Profile update response:', response);
+      
+      const updatedData = response.data.data || response.data;
+      updateUser(updatedData);
+      setFormData(updatedData);
       setMessage({ type: 'success', text: 'Profile updated successfully!' });
       setEditing(false);
     } catch (error) {
+      console.error('Profile update error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to update profile';
       setMessage({ 
         type: 'error', 
-        text: error.response?.data?.message || 'Failed to update profile' 
+        text: errorMessage
       });
     } finally {
       setUpdating(false);
@@ -140,8 +188,9 @@ const Profile = () => {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
+                  onKeyDown={handleKeyDown}
                   disabled={!editing}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-transparent ${!editing ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                 />
               </div>
 
@@ -155,8 +204,9 @@ const Profile = () => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
+                  onKeyDown={handleKeyDown}
                   disabled={!editing}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-transparent ${!editing ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                 />
               </div>
 

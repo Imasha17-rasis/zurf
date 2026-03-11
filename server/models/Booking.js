@@ -17,8 +17,16 @@ const bookingSchema = new mongoose.Schema({
     default: null
   },
   gears: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Gear'
+    gear: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Gear'
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 1
+    }
   }],
   bookingDate: {
     type: Date,

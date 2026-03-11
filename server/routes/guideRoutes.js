@@ -2,12 +2,20 @@ const express = require('express');
 const router = express.Router();
 const {
   createGuideProfile,
+  getGuideProfile,
   updateGuideProfile,
   viewSchedule,
   acceptBooking,
   rejectBooking,
   getAllGuides,
-  getGuideById
+  getGuideById,
+  requestHireGuide,
+  getHireRequests,
+  acceptHireRequest,
+  rejectHireRequest,
+  getOwnerHireRequests,
+  assignGuideToBooking,
+  uploadProfileImage
 } = require('../controllers/guideController');
 const { protect } = require('../middleware/authMiddleware');
 const { authorize, checkVerified } = require('../middleware/roleMiddleware');
@@ -16,6 +24,7 @@ const {
   validateCreateGuideProfile,
   validateUpdateGuideProfile,
 } = require('../middleware/validators/Guidevalidators');
+const { uploadSingle, handleUploadError } = require('../middleware/uploadMiddleware');
 
 // Public routes
 router.get('/', getAllGuides);
@@ -30,7 +39,28 @@ router.get(
   viewSchedule
 );
 
-router.get('/:id', getGuideById);
+router.get(
+  '/profile',
+  protect,
+  authorize('guide'),
+  getGuideProfile
+);
+
+router.get(
+  '/my-hire-requests',
+  protect,
+  authorize('guide'),
+  getHireRequests
+);
+
+router.post(
+  '/upload-profile-image',
+  protect,
+  authorize('guide'),
+  uploadSingle,
+  handleUploadError,
+  uploadProfileImage
+);
 
 // Protected routes - Guide only
 router.post(
@@ -67,5 +97,45 @@ router.put(
   checkVerified,
   rejectBooking
 );
+
+// Hire request routes
+router.post(
+  '/:id/request-hire',
+  protect,
+  authorize('owner'),
+  requestHireGuide
+);
+
+router.put(
+  '/hire-requests/:requestId/accept',
+  protect,
+  authorize('guide'),
+  acceptHireRequest
+);
+
+router.put(
+  '/hire-requests/:requestId/reject',
+  protect,
+  authorize('guide'),
+  rejectHireRequest
+);
+
+// Owner routes for hiring guides
+router.get(
+  '/owner/hire-requests',
+  protect,
+  authorize('owner'),
+  getOwnerHireRequests
+);
+
+router.put(
+  '/assign-to-booking',
+  protect,
+  authorize('owner'),
+  assignGuideToBooking
+);
+
+// Public route for getting guide by ID - MUST be last
+router.get('/:id', getGuideById);
 
 module.exports = router;

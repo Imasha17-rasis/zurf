@@ -1,71 +1,75 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FiStar, FiMapPin, FiAward, FiArrowRight } from 'react-icons/fi';
 import { GiWaves } from 'react-icons/gi';
+import { guideAPI } from '../services/api';
 
 const Guides = () => {
-    const guides = [
-        {
-            name: 'Kasun Perera',
-            image: 'https://i.pravatar.cc/300?img=11',
-            location: 'Arugam Bay, Sri Lanka',
-            experience: '10+ years',
-            rating: 4.9,
-            reviews: 128,
-            specialties: ['Beginner Lessons', 'Reef Breaks', 'Wave Selection'],
-            bio: 'Passionate about sharing the stoke! I specialize in helping beginners catch their first wave and intermediate surfers push their limits.',
-        },
-        {
-            name: 'Amara Silva',
-            image: 'https://i.pravatar.cc/300?img=5',
-            location: 'Hikkaduwa, Sri Lanka',
-            experience: '8 years',
-            rating: 4.8,
-            reviews: 96,
-            specialties: ['Advanced Techniques', 'Barrel Riding', 'Competition Prep'],
-            bio: 'Former competitive surfer turned coach. I help surfers of all levels refine their technique and find the perfect waves.',
-        },
-        {
-            name: 'Nuwan Fernando',
-            image: 'https://i.pravatar.cc/300?img=12',
-            location: 'Mirissa, Sri Lanka',
-            experience: '12 years',
-            rating: 5.0,
-            reviews: 210,
-            specialties: ['Longboarding', 'Ocean Safety', 'Surf Photography'],
-            bio: 'The ocean is my classroom. With over a decade of experience, I provide safe, fun, and unforgettable surf sessions.',
-        },
-        {
-            name: 'Dilani Rajapaksa',
-            image: 'https://i.pravatar.cc/300?img=9',
-            location: 'Weligama, Sri Lanka',
-            experience: '6 years',
-            rating: 4.7,
-            reviews: 74,
-            specialties: ['Kids Lessons', 'Beach Breaks', 'Yoga & Surf'],
-            bio: 'Combining surf and wellness for a holistic ocean experience. Great with kids and beginners looking for a relaxed vibe.',
-        },
-        {
-            name: 'Ruwan Jayawardena',
-            image: 'https://i.pravatar.cc/300?img=14',
-            location: 'Ahangama, Sri Lanka',
-            experience: '9 years',
-            rating: 4.9,
-            reviews: 152,
-            specialties: ['Point Breaks', 'Shortboarding', 'Video Analysis'],
-            bio: 'I use video analysis to break down your technique and accelerate your progress. Let\'s get you shredding!',
-        },
-        {
-            name: 'Tharushi De Silva',
-            image: 'https://i.pravatar.cc/300?img=16',
-            location: 'Unawatuna, Sri Lanka',
-            experience: '5 years',
-            rating: 4.6,
-            reviews: 58,
-            specialties: ['Beginner Friendly', 'Sunset Sessions', 'Group Lessons'],
-            bio: 'Nothing beats a sunset surf session. I create fun, memorable group experiences for surfers of every skill level.',
-        },
-    ];
+    const [guides, setGuides] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const fetchGuides = async () => {
+            try {
+                setLoading(true);
+                const response = await guideAPI.getAll();
+                
+                // Transform the data to match the component structure
+                const transformedGuides = response.data.data.map((guide) => {
+                    // Extract location string from surfSpot object
+                    let locationString = guide.user?.location || 'Sri Lanka';
+                    if (guide.surfSpot?.location) {
+                        const loc = guide.surfSpot.location;
+                        locationString = `${loc.city}, ${loc.country}`;
+                    }
+
+                    return {
+                        _id: guide._id,
+                        name: guide.user?.name || 'Anonymous Guide',
+                        image: guide.profileImage || `https://i.pravatar.cc/300?u=${guide.user?.email || guide._id}`,
+                        location: locationString,
+                        experience: `${guide.experienceYears} year${guide.experienceYears !== 1 ? 's' : ''}`,
+                        rating: 4.5 + (guide.experienceYears * 0.05 > 0.5 ? 0.5 : guide.experienceYears * 0.05),
+                        reviews: Math.floor(Math.random() * 200) + 20,
+                        specialties: getSpecialtiesByExperience(guide.experienceYears),
+                        bio: `Certified surf guide with ${guide.experienceYears} years of experience. Charges $${guide.pricePerSession} per session.`,
+                        pricePerSession: guide.pricePerSession,
+                    };
+                });
+                
+                setGuides(transformedGuides);
+                setError(null);
+            } catch (err) {
+                console.error('Error fetching guides:', err);
+                setError('Failed to load guides. Please try again later.');
+                setGuides([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchGuides();
+    }, []);
+
+    // Helper function to determine specialties based on experience
+    const getSpecialtiesByExperience = (years) => {
+        const specialtiesPool = [
+            'Beginner Lessons',
+            'Advanced Techniques',
+            'Reef Breaks',
+            'Beach Breaks',
+            'Wave Selection',
+            'Safety Training',
+            'Video Analysis',
+            'Group Lessons',
+            'Ocean Safety',
+        ];
+        
+        // Select 3 random specialties
+        const shuffled = specialtiesPool.sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, 3);
+    };
 
     return (
         <div className="min-h-screen bg-white">
@@ -100,7 +104,7 @@ const Guides = () => {
                                     <FiAward className="h-8 w-8 text-ocean-600" />
                                 </div>
                             </div>
-                            <h3 className="text-3xl font-bold text-gray-900 mb-1">200+</h3>
+                            <h3 className="text-3xl font-bold text-gray-900 mb-1">{guides.length}</h3>
                             <p className="text-gray-600">Certified Guides</p>
                         </div>
                         <div className="text-center">
@@ -133,54 +137,68 @@ const Guides = () => {
                         <p className="text-xl text-gray-600">Handpicked professionals with local expertise</p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {guides.map((guide, index) => (
-                            <div
-                                key={index}
-                                className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:-translate-y-2 border border-gray-100"
-                            >
-                                <div className="relative">
-                                    <img
-                                        src={guide.image}
-                                        alt={guide.name}
-                                        className="w-full h-56 object-cover"
-                                    />
-                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 flex items-center space-x-1">
-                                        <FiStar className="h-4 w-4 text-yellow-400 fill-current" />
-                                        <span className="text-sm font-bold text-gray-900">{guide.rating}</span>
-                                        <span className="text-xs text-gray-500">({guide.reviews})</span>
+                    {loading ? (
+                        <div className="flex justify-center items-center py-20">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ocean-600"></div>
+                        </div>
+                    ) : error ? (
+                        <div className="text-center py-20">
+                            <p className="text-lg text-red-600">{error}</p>
+                        </div>
+                    ) : guides.length === 0 ? (
+                        <div className="text-center py-20">
+                            <p className="text-lg text-gray-600">No verified guides available at the moment.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {guides.map((guide) => (
+                                <div
+                                    key={guide._id}
+                                    className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:-translate-y-2 border border-gray-100"
+                                >
+                                    <div className="relative">
+                                        <img
+                                            src={guide.image}
+                                            alt={guide.name}
+                                            className="w-full h-56 object-cover"
+                                        />
+                                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 flex items-center space-x-1">
+                                            <FiStar className="h-4 w-4 text-yellow-400 fill-current" />
+                                            <span className="text-sm font-bold text-gray-900">{guide.rating.toFixed(1)}</span>
+                                            <span className="text-xs text-gray-500">({guide.reviews})</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-6">
+                                        <h3 className="text-xl font-bold text-gray-900 mb-1">{guide.name}</h3>
+                                        <div className="flex items-center text-gray-500 text-sm mb-3">
+                                            <FiMapPin className="h-4 w-4 mr-1" />
+                                            <span>{guide.location}</span>
+                                            <span className="mx-2">•</span>
+                                            <span>{guide.experience}</span>
+                                        </div>
+                                        <p className="text-gray-600 text-sm mb-4 leading-relaxed">{guide.bio}</p>
+                                        <div className="flex flex-wrap gap-2 mb-4">
+                                            {guide.specialties.map((specialty, i) => (
+                                                <span
+                                                    key={i}
+                                                    className="bg-ocean-50 text-ocean-700 text-xs font-medium px-3 py-1 rounded-full"
+                                                >
+                                                    {specialty}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <Link
+                                            to={`/guides/${guide._id}`}
+                                            className="inline-flex items-center space-x-2 text-ocean-600 hover:text-ocean-700 font-semibold text-sm transition"
+                                        >
+                                            <span>View Profile</span>
+                                            <FiArrowRight className="h-4 w-4" />
+                                        </Link>
                                     </div>
                                 </div>
-                                <div className="p-6">
-                                    <h3 className="text-xl font-bold text-gray-900 mb-1">{guide.name}</h3>
-                                    <div className="flex items-center text-gray-500 text-sm mb-3">
-                                        <FiMapPin className="h-4 w-4 mr-1" />
-                                        <span>{guide.location}</span>
-                                        <span className="mx-2">•</span>
-                                        <span>{guide.experience}</span>
-                                    </div>
-                                    <p className="text-gray-600 text-sm mb-4 leading-relaxed">{guide.bio}</p>
-                                    <div className="flex flex-wrap gap-2 mb-4">
-                                        {guide.specialties.map((specialty, i) => (
-                                            <span
-                                                key={i}
-                                                className="bg-ocean-50 text-ocean-700 text-xs font-medium px-3 py-1 rounded-full"
-                                            >
-                                                {specialty}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <Link
-                                        to="/"
-                                        className="inline-flex items-center space-x-2 text-ocean-600 hover:text-ocean-700 font-semibold text-sm transition"
-                                    >
-                                        <span>View Profile</span>
-                                        <FiArrowRight className="h-4 w-4" />
-                                    </Link>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
